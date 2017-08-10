@@ -20,5 +20,5 @@ if not sickbeard.SYS_ENCODING or sickbeard.SYS_ENCODING in ('ANSI_X3.4-1968', 'U
     sickbeard.SYS_ENCODING = 'UTF-8'
 
 rollback.CacheDb().run(2)
-rollback.MainDb().run(20003)
+rollback.MainDb().run(20004)
 rollback.FailedDb().run(1)

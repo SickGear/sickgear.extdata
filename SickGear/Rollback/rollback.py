@@ -112,7 +112,12 @@ class MainDb(RollbackBase):
         RollbackBase.__init__(self, 'sickbeard.db')
         self.db_versions = {
             20004: self.rollback_20004,
+            20005: self.rollback_20005,
         }
+
+    def rollback_20005(self):
+        self.remove_table('tv_shows_not_found')
+        self.set_db_version(20004)
 
     def rollback_20004(self):
         if self.my_db.hasTable('indexer_mapping'):
