@@ -3,7 +3,7 @@
 import os
 import stat
 
-from sickbeard import db
+from sickbeard import db, common
 from sickbeard import encodingKludge as ek
 from sickbeard.helpers import copyFile
 
@@ -55,6 +55,10 @@ class RollbackBase:
     def remove_table(self, name):
         if self.my_db.hasTable(name):
             self.my_db.action('DROP TABLE' + ' [%s]' % name)
+
+    def remove_index(self, table, name):
+        if self.my_db.hasIndex(table, name):
+            self.my_db.action('DROP INDEX' + ' [%s]' % name)
 
     def set_db_version(self, version):
         self.my_db.mass_action([['UPDATE' + ' db_version SET db_version = ?', [version]], ['VACUUM']])
@@ -113,7 +117,24 @@ class MainDb(RollbackBase):
         self.db_versions = {
             20004: self.rollback_20004,
             20005: self.rollback_20005,
+            20006: self.rollback_20006,
         }
+
+    def rollback_20006(self):
+        self.remove_index('tv_episodes', 'idx_tv_ep_ids')
+
+        sql_result = self.my_db.select('SELECT rowid, quality FROM history WHERE action LIKE "%%%02d"' %
+                                       common.SNATCHED_PROPER)
+
+        cl = []
+        for s in sql_result:
+            cl.append(['UPDATE history SET action = ? WHERE rowid = ?',
+                       [common.Quality.compositeStatus(common.SNATCHED, int(s['quality'])), s['rowid']]])
+        if cl:
+            self.my_db.mass_action(cl)
+
+        self.remove_table('flags')
+        self.set_db_version(20005)
 
     def rollback_20005(self):
         self.remove_table('tv_shows_not_found')
