@@ -118,7 +118,20 @@ class MainDb(RollbackBase):
             20004: self.rollback_20004,
             20005: self.rollback_20005,
             20006: self.rollback_20006,
+            20007: self.rollback_20007,
         }
+
+    def rollback_20007(self):
+        self.remove_table('tv_episodes_watched')
+
+        ##################################################################
+        ##################################################################
+        # Temp rollback to 20005 until PR for 20006 was merged,
+        # at that point the following 20006 was used as normal
+        ##################################################################
+        ##################################################################
+        # self.set_db_version(20005)
+        self.set_db_version(20006)
 
     def rollback_20006(self):
         self.remove_index('tv_episodes', 'idx_tv_ep_ids')
