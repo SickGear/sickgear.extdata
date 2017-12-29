@@ -95,7 +95,16 @@ class CacheDb(RollbackBase):
         RollbackBase.__init__(self, dbname='cache.db')
         self.db_versions = {
             3: self.rollback_3,
+            4: self.rollback_4,
         }
+
+    def rollback_4(self):
+        self.remove_table('providererrors')
+        self.remove_table('providererrorcount')
+        self.remove_table('provider_fails')
+        self.remove_table('provider_fails_count')
+
+        self.set_db_version(3)
 
     def rollback_3(self):
         if not self.my_db.hasTable('scene_exceptions'):
@@ -119,18 +128,17 @@ class MainDb(RollbackBase):
             20005: self.rollback_20005,
             20006: self.rollback_20006,
             20007: self.rollback_20007,
+            20008: self.rollback_20008,
         }
+
+    def rollback_20008(self):
+        self.remove_table('webdl_types')
+
+        self.set_db_version(20007)
 
     def rollback_20007(self):
         self.remove_table('tv_episodes_watched')
 
-        ##################################################################
-        ##################################################################
-        # Temp rollback to 20005 until PR for 20006 was merged,
-        # at that point the following 20006 was used as normal
-        ##################################################################
-        ##################################################################
-        # self.set_db_version(20005)
         self.set_db_version(20006)
 
     def rollback_20006(self):
