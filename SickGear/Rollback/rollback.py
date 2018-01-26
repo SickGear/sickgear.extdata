@@ -129,7 +129,13 @@ class MainDb(RollbackBase):
             20006: self.rollback_20006,
             20007: self.rollback_20007,
             20008: self.rollback_20008,
+            20009: self.rollback_20009,
         }
+
+    def rollback_20009(self):
+        self.remove_table('tv_episodes_watched')
+
+        self.set_db_version(20008)
 
     def rollback_20008(self):
         self.remove_table('webdl_types')
@@ -137,8 +143,7 @@ class MainDb(RollbackBase):
         self.set_db_version(20007)
 
     def rollback_20007(self):
-        self.remove_table('tv_episodes_watched')
-
+        # watched_state moved to 20009 and this now a version rollback
         self.set_db_version(20006)
 
     def rollback_20006(self):
