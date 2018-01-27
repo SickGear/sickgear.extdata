@@ -1,5 +1,12 @@
-SyFy::SYFY
-Freeform::FREE
 CBS::CBS
+CW::CWS?
+Disney::DSNY
+Freeform::FREE
+History::HIST
+Motor Trend OnDemand::MTOD
+MTV::MTV
+NBC::NBC
+PBS::PBS
 Spike::SPIK
+SyFy::SYFY
 Viceland::VICE
