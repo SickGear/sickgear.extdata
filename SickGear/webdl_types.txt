@@ -1,3 +1,5 @@
+Bravo::BRAV
+CBC::CBC
 CBS::CBS
 CW::CWS?
 Disney::DSNY
@@ -6,6 +8,7 @@ History::HIST
 Motor Trend OnDemand::MTOD
 MTV::MTV
 NBC::NBC
+Nickelodeon::NICK
 PBS::PBS
 Spike::SPIK
 SyFy::SYFY
