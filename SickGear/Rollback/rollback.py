@@ -63,20 +63,28 @@ class RollbackBase:
     def set_db_version(self, version):
         self.my_db.mass_action([['UPDATE' + ' db_version SET db_version = ?', [version]], ['VACUUM']])
 
+    def is_test_db(self):
+        return 100000 <= self.my_db.checkDBVersion()
+
     def run(self, rollback_version):
         self.make_backup()
         try:
             c_version = self.my_db.checkDBVersion()
+            base_db_is_test = self.is_test_db()
             if isinstance(rollback_version, (int, long)):
-                if rollback_version < c_version and c_version in self.db_versions:
+                if (rollback_version < c_version or base_db_is_test) and c_version in self.db_versions:
                     while True:
                         if c_version not in self.db_versions:
                             break
                         self.db_versions[c_version]()
                         c_version = self.my_db.checkDBVersion()
-                        if rollback_version >= c_version:
+                        if rollback_version >= c_version or base_db_is_test:
                             break
-                if rollback_version == c_version:
+                if base_db_is_test:
+                    if not self.is_test_db():
+                        self.remove_backup()
+                        return True
+                elif rollback_version == c_version:
                     self.remove_backup()
                     return True
             self.restore_backup()
@@ -94,10 +102,19 @@ class CacheDb(RollbackBase):
     def __init__(self):
         RollbackBase.__init__(self, dbname='cache.db')
         self.db_versions = {
+            # standalone test db rollbacks (db version >=100.000)
+            100000: self.rollback_test_100000,
+            # regular db rollbacks
             3: self.rollback_3,
             4: self.rollback_4,
         }
 
+    # standalone test db rollbacks (always rollback to a production db)
+    def rollback_test_100000(self):
+        # do something
+        self.set_db_version(4)  # set production db version
+
+    # regular db rollbacks
     def rollback_4(self):
         self.remove_table('providererrors')
         self.remove_table('providererrorcount')
