@@ -1,15 +1,28 @@
 Bravo::BRAV
 CBC::CBC
 CBS::CBS
+Comedy Central::CC
+Cooking Channel::COOK
 CW::CWS?
+Discovery Channel::DISC
 Disney::DSNY
 Freeform::FREE
+FYI::FYI
+Google Play::GP
+HGTV::HGTV
 History::HIST
+Investigation Discovery::ID
+iPlayer::iP
+ITV Hub::iT
+MNBC::MNBC
 Motor Trend OnDemand::MTOD
 MTV::MTV
 NBC::NBC
 Nickelodeon::NICK
 PBS::PBS
 Spike::SPIK
+Stan::STAN
 SyFy::SYFY
+TLC::TLC
+UKTV::UKTV
 Viceland::VICE
