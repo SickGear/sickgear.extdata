@@ -96,6 +96,23 @@ class RollbackBase:
 class FailedDb(RollbackBase):
     def __init__(self):
         RollbackBase.__init__(self, dbname='failed.db')
+        self.db_versions = {
+            # standalone test db rollbacks (db version >=100.000)
+            100000: self.rollback_test_100000,
+            # regular db rollbacks
+        }
+
+    # standalone test db rollbacks (always rollback to a production db)
+    def rollback_test_100000(self):
+        self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
+                                ['CREATE TABLE history (date NUMERIC, size NUMERIC, release TEXT, provider TEXT, '
+                                 'old_status NUMERIC, showid NUMERIC, season NUMERIC, episode NUMERIC)'],
+                                ['REPLACE INTO history (date, size, release, provider, old_status, showid, '
+                                 'season, episode) SELECT date, size, release, provider, old_status, showid, '
+                                 'season, episode FROM backup_history WHERE indexer IN (0,1,2)'],
+                                ['DELETE FROM backup_history WHERE indexer IN (0,1,2)'],
+                                ])
+        self.set_db_version(1)
 
 
 class CacheDb(RollbackBase):
@@ -111,7 +128,11 @@ class CacheDb(RollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
-        # do something
+        self.my_db.mass_action([['DROP TABLE provider_cache'],
+                                ['CREATE TABLE provider_cache (provider TEXT ,name TEXT, season NUMERIC, '
+                                 'episodes TEXT, indexerid NUMERIC, url TEXT UNIQUE, time NUMERIC, quality TEXT, '
+                                 'release_group TEXT, version NUMERIC)']
+                                ])
         self.set_db_version(4)  # set production db version
 
     # regular db rollbacks
@@ -141,6 +162,9 @@ class MainDb(RollbackBase):
     def __init__(self):
         RollbackBase.__init__(self, 'sickbeard.db')
         self.db_versions = {
+            # test db's
+            100000: self.rollback_100000,
+            # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
             20006: self.rollback_20006,
@@ -149,6 +173,128 @@ class MainDb(RollbackBase):
             20009: self.rollback_20009,
         }
 
+    # standalone test db rollbacks (always rollback to a production db)
+    def rollback_100000(self):
+        self.remove_index('tv_episodes', 'idx_tv_episodes_unique')
+
+        self.remove_index('tv_episodes', 'idx_tv_episodes_showid_airdate')
+        self.my_db.mass_action([['CREATE TABLE backup_tv_episodes (episode_id INTEGER PRIMARY KEY, showid NUMERIC, '
+                                 'indexerid NUMERIC, indexer NUMERIC, name TEXT, season NUMERIC, episode NUMERIC, '
+                                 'description TEXT, airdate NUMERIC, hasnfo NUMERIC, hastbn NUMERIC, status NUMERIC, '
+                                 'location TEXT, file_size NUMERIC, release_name TEXT, subtitles TEXT, '
+                                 'subtitles_searchcount NUMERIC, subtitles_lastsearch TIMESTAMP, is_proper NUMERIC, '
+                                 'scene_season NUMERIC, scene_episode NUMERIC, absolute_number NUMERIC, '
+                                 'scene_absolute_number NUMERIC, release_group TEXT, version NUMERIC)'],
+                                ['REPLACE INTO backup_tv_episodes (episode_id, showid, indexerid, indexer, name, '
+                                 'season, episode, description, airdate, hasnfo, hastbn, status, location, file_size, '
+                                 'release_name, subtitles, subtitles_searchcount, subtitles_lastsearch, is_proper, '
+                                 'scene_season, scene_episode, absolute_number, scene_absolute_number, release_group, '
+                                 'version) SELECT episode_id, showid, indexerid, indexer, name, season, episode, '
+                                 'description, airdate, hasnfo, hastbn, status, location, file_size, release_name, '
+                                 'subtitles, subtitles_searchcount, subtitles_lastsearch, is_proper, scene_season, '
+                                 'scene_episode, absolute_number, scene_absolute_number, release_group, version '
+                                 'FROM tv_episodes WHERE indexer NOT IN (1,2)'],
+                                ['DELETE FROM tv_episodes WHERE indexer NOT IN (1,2)']
+                                ])
+        self.my_db.action('CREATE INDEX idx_tv_episodes_showid_airdate ON tv_episodes(showid,airdate)')
+
+        self.my_db.action('CREATE INDEX idx_showid ON tv_episodes (showid)')
+
+        self.remove_index('tv_shows', 'idx_indexer_id')
+        self.my_db.mass_action([['CREATE TABLE backup_tv_shows (show_id INTEGER PRIMARY KEY, indexer_id NUMERIC, '
+                                 'indexer NUMERIC, show_name TEXT, location TEXT, network TEXT, genre TEXT, '
+                                 'classification TEXT, runtime NUMERIC, quality NUMERIC, airs TEXT, status TEXT, '
+                                 'flatten_folders NUMERIC, paused NUMERIC, startyear NUMERIC, air_by_date NUMERIC, '
+                                 'lang TEXT, subtitles NUMERIC, notify_list TEXT, imdb_id TEXT, '
+                                 'last_update_indexer NUMERIC, dvdorder NUMERIC, archive_firstmatch NUMERIC, '
+                                 'rls_require_words TEXT, rls_ignore_words TEXT, sports NUMERIC, anime NUMERIC, '
+                                 'scene NUMERIC, overview TEXT, tag TEXT)'],
+                                ['REPLACE INTO backup_tv_shows (show_id, indexer_id, indexer, show_name, location, '
+                                 'network, genre, classification, runtime, quality, airs, status, flatten_folders, '
+                                 'paused, startyear, air_by_date, lang, subtitles, notify_list, imdb_id, '
+                                 'last_update_indexer, dvdorder, archive_firstmatch, rls_require_words, '
+                                 'rls_ignore_words, sports, anime, scene, overview, tag) SELECT show_id, indexer_id, '
+                                 'indexer, show_name, location, network, genre, classification, runtime, quality, '
+                                 'airs, status, flatten_folders, paused, startyear, air_by_date, lang, subtitles, '
+                                 'notify_list, imdb_id, last_update_indexer, dvdorder, archive_firstmatch, '
+                                 'rls_require_words, rls_ignore_words, sports, anime, scene, overview, tag '
+                                 'FROM tv_shows WHERE indexer NOT IN (1,2)'],
+                                ['DELETE FROM tv_shows WHERE indexer NOT IN (1,2)']
+                                ])
+        self.my_db.action('CREATE UNIQUE INDEX idx_indexer_id ON tv_shows (indexer_id)')
+
+        self.remove_index('imdb_info', 'idx_id_indexer_imdb_info')
+
+        self.my_db.mass_action([['ALTER TABLE imdb_info RENAME TO backup_imdb_info'],
+                                ['CREATE TABLE imdb_info (indexer_id INTEGER PRIMARY KEY, imdb_id TEXT, '
+                                 'title TEXT, year NUMERIC, akas TEXT, runtimes NUMERIC, genres TEXT, '
+                                 'countries TEXT, country_codes TEXT, certificates TEXT, rating TEXT, '
+                                 'votes INTEGER, last_update NUMERIC)'],
+                                ['REPLACE INTO imdb_info (indexer_id, imdb_id, title, year, akas, runtimes, genres, '
+                                 'countries, country_codes, certificates, rating, votes, last_update) '
+                                 'SELECT indexer_id, imdb_id, title, year, akas, runtimes, genres, '
+                                 'countries, country_codes, certificates, rating, votes, last_update '
+                                 'FROM backup_imdb_info WHERE indexer IN (1,2)'],
+                                ['DELETE FROM backup_imdb_info WHERE indexer IN (1,2)']])
+
+        self.remove_index('blacklist', 'idx_id_indexer_blacklist')
+
+        self.my_db.mass_action([['ALTER TABLE blacklist RENAME TO backup_blacklist'],
+                                ['CREATE TABLE blacklist (show_id INTEGER, range TEXT, keyword TEXT)'],
+                                ['REPLACE INTO blacklist (show_id, range, keyword) '
+                                 'SELECT show_id, range, keyword FROM backup_blacklist '
+                                 'WHERE indexer IN (1,2)'],
+                                ['DELETE FROM backup_blacklist WHERE indexer IN (1,2)']
+                                ])
+
+        self.remove_index('whitelist', 'idx_id_indexer_whitelist')
+
+        self.my_db.mass_action([['ALTER TABLE whitelist RENAME TO backup_whitelist'],
+                                ['CREATE TABLE whitelist (show_id INTEGER, range TEXT, keyword TEXT)'],
+                                ['REPLACE INTO whitelist (show_id, range, keyword) '
+                                 'SELECT show_id, range, keyword FROM backup_whitelist '
+                                 'WHERE indexer IN (1,2)'],
+                                ['DELETE FROM backup_whitelist WHERE indexer IN (1,2)']
+                                ])
+
+        self.remove_index('scene_exceptions', 'idx_id_indexer_scene_exceptions')
+
+        self.my_db.mass_action([['ALTER TABLE scene_exceptions RENAME TO backup_scene_exceptions'],
+                                ['CREATE TABLE scene_exceptions (exception_id INTEGER PRIMARY KEY, '
+                                 'indexer_id INTEGER KEY, show_name TEXT, season NUMERIC, custom NUMERIC)'],
+                                ['REPLACE INTO scene_exceptions (exception_id , indexer_id, show_name, season, '
+                                 'custom) SELECT exception_id , indexer_id, show_name, season, '
+                                 'custom FROM backup_scene_exceptions WHERE indexer IN (1,2)'],
+                                ['DELETE FROM backup_scene_exceptions WHERE indexer IN (1,2)']
+                                ])
+
+        self.my_db.mass_action([['ALTER TABLE scene_numbering RENAME TO tmp_scene_numbering'],
+                                ['CREATE TABLE scene_numbering (indexer TEXT, indexer_id INTEGER, season INTEGER, '
+                                 'episode INTEGER, scene_season INTEGER, scene_episode INTEGER, '
+                                 'absolute_number NUMERIC, scene_absolute_number NUMERIC, '
+                                 'PRIMARY KEY (indexer_id,season,episode))'],
+                                ['REPLACE INTO scene_numbering (indexer, indexer_id, season, episode, '
+                                 'scene_season, scene_episode, absolute_number, scene_absolute_number) '
+                                 'SELECT indexer, indexer_id, season, episode, '
+                                 'scene_season, scene_episode, absolute_number, scene_absolute_number '
+                                 'FROM tmp_scene_numbering'],
+                                ['DROP TABLE tmp_scene_numbering']
+                                ])
+
+        self.remove_index('history', 'idx_id_indexer_history')
+
+        self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
+                                ['CREATE TABLE history (action NUMERIC, date NUMERIC, showid NUMERIC, season NUMERIC, '
+                                 'episode NUMERIC, quality NUMERIC, resource TEXT, provider TEXT, version NUMERIC)'],
+                                ['REPLACE INTO history (action, date, showid, season, episode, quality, '
+                                 'resource, provider, version) SELECT action, date, showid, season, episode, quality, '
+                                 'resource, provider, version FROM backup_history WHERE indexer IN (0,1,2)'],
+                                ['DELETE FROM backup_history WHERE indexer IN (0,1,2)']
+                                ])
+
+        self.set_db_version(20008)
+
+    # regular db rollbacks
     def rollback_20009(self):
         self.remove_table('tv_episodes_watched')
 

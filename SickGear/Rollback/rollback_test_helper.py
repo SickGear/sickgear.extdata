@@ -19,7 +19,6 @@ sickbeard.DATA_DIR = os.environ.get('SickGearData') or os.path.realpath(r'..\..\
 if not sickbeard.SYS_ENCODING or sickbeard.SYS_ENCODING in ('ANSI_X3.4-1968', 'US-ASCII', 'ASCII'):
     sickbeard.SYS_ENCODING = 'UTF-8'
 
-rollback.CacheDb().run(100001)
-rollback.CacheDb().run(3)
-rollback.MainDb().run(20006)
+rollback.CacheDb().run(4)
+rollback.MainDb().run(20008)
 rollback.FailedDb().run(1)
