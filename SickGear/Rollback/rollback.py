@@ -164,6 +164,8 @@ class MainDb(RollbackBase):
         self.db_versions = {
             # test db's
             100000: self.rollback_100000,
+            100001: self.rollback_100001,
+            100002: self.rollback_100001,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -172,6 +174,11 @@ class MainDb(RollbackBase):
             20008: self.rollback_20008,
             20009: self.rollback_20009,
         }
+
+    def rollback_100001(self):
+        self.remove_table('tv_episodes_watched')
+
+        self.set_db_version(20008)
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_100000(self):
