@@ -15,6 +15,7 @@ class RollbackBase:
         self.my_db = db.DBConnection(self.db_name)
         self.filename = db.dbFilename(self.db_name)
         self.backup_filename = db.dbFilename(self.db_name, 'bak')
+        self.rollback_version = None
 
     def _delete_file(self, path_file):
         if self._chmod_file(path_file):
@@ -67,6 +68,7 @@ class RollbackBase:
         return 100000 <= self.my_db.checkDBVersion()
 
     def run(self, rollback_version):
+        self.rollback_version = rollback_version
         self.make_backup()
         try:
             c_version = self.my_db.checkDBVersion()
@@ -299,7 +301,7 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_history WHERE indexer IN (0,1,2)']
                                 ])
 
-        self.set_db_version(20008)
+        self.set_db_version(20009)
 
     # regular db rollbacks
     def rollback_20009(self):
