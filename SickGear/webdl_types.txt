@@ -4,11 +4,14 @@ CBC::CBC
 CBS::CBS
 Comedy Central::CC
 Cooking Channel::COOK
+CraveTV::CRAV
 CW::CWS?
+DirecTV::DTV
 Discovery Channel::DISC
 Disney::DSNY
 Freeform::FREE
 FYI::FYI
+go90::go90
 Google Play::GP
 HGTV::HGTV
 History::HIST
