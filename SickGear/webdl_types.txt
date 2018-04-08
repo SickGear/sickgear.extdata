@@ -1,4 +1,5 @@
 AMBC::AMBC
+AUBC::AUBC
 Bravo::BRAV
 CBC::CBC
 CBS::CBS
@@ -30,3 +31,4 @@ SyFy::SYFY
 TLC::TLC
 UKTV::UKTV
 Viceland::VICE
+VRV::VRV
