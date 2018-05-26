@@ -61,13 +61,79 @@ class RollbackBase:
         if self.my_db.hasIndex(table, name):
             self.my_db.action('DROP INDEX' + ' [%s]' % name)
 
+    def remove_column(self, table, column):
+        # get old table columns and store the ones we want to keep
+        result = self.my_db.select('pragma table_info([%s])' % table)
+        kept_columns = filter(lambda col: column != col['name'], result)
+        # input sanitisation
+        if not kept_columns:
+            raise ValueError('No table columns found, is table name correct: %s' % table)
+        if result == kept_columns:
+            raise ValueError('Column name not found: %s' % column)
+
+        kept_columns_names = []
+        final = []
+        pk = []
+
+        # copy the old table schema, column by column
+        for column in kept_columns:
+
+            kept_columns_names.append(column['name'])
+
+            cl = [column['name'], column['type']]
+
+            '''
+            To be implemented if ever required
+            if column['dflt_value']:
+                cl.append(str(column['dflt_value']))
+
+            if column['notnull']:
+                cl.append(column['notnull'])
+            '''
+
+            if 0 != int(column['pk']):
+                pk.append(column['name'])
+
+            b = ' '.join(cl)
+            final.append(b)
+
+        # join all the table column creation fields
+        final = ', '.join(final)
+        kept_columns_names = ', '.join(kept_columns_names)
+
+        # generate sql for the new table creation
+        if 0 == len(pk):
+            sql = 'CREATE TABLE [%s_new] (%s)' % (table, final)
+        else:
+            pk = ', '.join(pk)
+            sql = 'CREATE TABLE [%s_new] (%s, PRIMARY KEY(%s))' % (table, final, pk)
+
+        # create new temporary table and copy the old table data across, barring the removed column
+        self.my_db.action(sql)
+        self.my_db.action('INSERT INTO [%s_new] SELECT %s FROM [%s]' % (table, kept_columns_names, table))
+
+        # copy the old indexes from the old table
+        result = self.my_db.select('SELECT sql FROM sqlite_master WHERE tbl_name=? and type="index"', [table])
+
+        # remove the old table and rename the new table to take it's place
+        self.my_db.action('DROP TABLE [%s]' % table)
+        self.my_db.action('ALTER TABLE [%s_new] RENAME TO [%s]' % (table, table))
+
+        # write any indexes to the new table
+        if 0 < len(result):
+            for index in result:
+                self.my_db.action(index['sql'])
+
+        # vacuum the db as we will have a lot of space to reclaim after dropping tables
+        self.my_db.action('VACUUM')
+
     def set_db_version(self, version):
         self.my_db.mass_action([['UPDATE' + ' db_version SET db_version = ?', [version]], ['VACUUM']])
 
     def is_test_db(self):
         return 100000 <= self.my_db.checkDBVersion()
 
-    def run(self, rollback_version):
+    def run(self, rollback_version, raise_exception=False):
         self.rollback_version = rollback_version
         self.make_backup()
         try:
@@ -90,8 +156,10 @@ class RollbackBase:
                     self.remove_backup()
                     return True
             self.restore_backup()
-        except (StandardError, Exception):
+        except (StandardError, Exception) as e:
             self.restore_backup()
+            if raise_exception:
+                raise
         return False
 
 
@@ -168,6 +236,7 @@ class MainDb(RollbackBase):
             100000: self.rollback_100000,
             100001: self.rollback_100001,
             100002: self.rollback_100001,
+            100003: self.rollback_100003,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -176,6 +245,10 @@ class MainDb(RollbackBase):
             20008: self.rollback_20008,
             20009: self.rollback_20009,
         }
+
+    def rollback_100003(self):
+        self.remove_column('tv_shows', 'prune')
+        self.set_db_version(20009)
 
     def rollback_100001(self):
         self.remove_table('tv_episodes_watched')

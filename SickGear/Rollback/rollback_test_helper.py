@@ -1,8 +1,14 @@
 import locale
 import os
+import sys
 
 import rollback
+
+sys.path.insert(1, '../../../SickGear')
+
 import sickbeard
+from sickbeard import logger
+from sickbeard.exceptions import ex
 
 try:
     locale.setlocale(locale.LC_ALL, '')
@@ -19,6 +25,9 @@ sickbeard.DATA_DIR = os.environ.get('SickGearData') or os.path.realpath(r'..\..\
 if not sickbeard.SYS_ENCODING or sickbeard.SYS_ENCODING in ('ANSI_X3.4-1968', 'US-ASCII', 'ASCII'):
     sickbeard.SYS_ENCODING = 'UTF-8'
 
-rollback.CacheDb().run(4)
-rollback.MainDb().run(20008)
-rollback.FailedDb().run(1)
+try:
+    # rollback.CacheDb().run(4, raise_exception=True)
+    rollback.MainDb().run(20009, raise_exception=True)
+    # rollback.FailedDb().run(1, raise_exception=True)
+except (StandardError, Exception) as e:
+    print ex(e)
