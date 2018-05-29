@@ -244,10 +244,12 @@ class MainDb(RollbackBase):
             20007: self.rollback_20007,
             20008: self.rollback_20008,
             20009: self.rollback_20009,
+            20010: self.rollback_20010,
         }
 
     def rollback_100003(self):
         self.remove_column('tv_shows', 'prune')
+
         self.set_db_version(20009)
 
     def rollback_100001(self):
@@ -374,9 +376,14 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_history WHERE indexer IN (0,1,2)']
                                 ])
 
-        self.set_db_version(20009)
+        self.set_db_version(20010)
 
     # regular db rollbacks
+    def rollback_20010(self):
+        self.remove_column('tv_shows', 'prune')
+
+        self.set_db_version(20009)
+
     def rollback_20009(self):
         self.remove_table('tv_episodes_watched')
 
