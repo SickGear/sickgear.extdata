@@ -1,10 +1,12 @@
 AMBC::AMBC
 AUBC::AUBC
 Bravo::BRAV
+Cartoon Network::CN
 CBC::CBC
 CBS::CBS
 Comedy Central::CC
 Cooking Channel::COOK
+Crackle::CRKL
 CraveTV::CRAV
 CW::CWS?
 DirecTV::DTV
@@ -32,3 +34,5 @@ TLC::TLC
 UKTV::UKTV
 Viceland::VICE
 VRV::VRV
+WOWPlus::WOWPlus
+Youtube Red::RED
