@@ -12,6 +12,7 @@ CW::CWS?
 DirecTV::DTV
 Discovery Channel::DISC
 Disney::DSNY
+Facebook Watch::FBWatch
 Freeform::FREE
 FYI::FYI
 go90::go90
