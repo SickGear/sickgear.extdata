@@ -9,6 +9,7 @@ Cooking Channel::COOK
 Crackle::CRKL
 CraveTV::CRAV
 CW::CWS?
+DC Universe::DCU
 DirecTV::DTV
 Discovery Channel::DISC
 Disney::DSNY
