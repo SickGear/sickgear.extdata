@@ -28,6 +28,7 @@ Motor Trend OnDemand::MTOD
 MTV::MTV
 NBC::NBC
 Nickelodeon::NICK
+NRK::NRK
 PBS::PBS
 Spike::SPIK
 Stan::STAN
