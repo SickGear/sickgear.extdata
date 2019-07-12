@@ -3,9 +3,151 @@
 import os
 import stat
 
-from sickbeard import db, common
+from sickbeard import db, common, classes, logger
 from sickbeard import encodingKludge as ek
 from sickbeard.helpers import copyFile
+
+
+class ImageRollback:
+    def __init__(self):
+        self.support_load_msg = hasattr(classes, 'LoadingMessage')
+        import sickbeard
+        import ast
+        import copy
+        from sickbeard.config import check_setting_str
+        ACTUAL_CACHE_DIR = check_setting_str(sickbeard.CFG, 'General', 'cache_dir', 'cache')
+
+        # unless they specify, put the cache dir inside the data dir
+        if not os.path.isabs(ACTUAL_CACHE_DIR):
+            CACHE_DIR = os.path.join(sickbeard.DATA_DIR, ACTUAL_CACHE_DIR)
+        else:
+            CACHE_DIR = ACTUAL_CACHE_DIR
+        sickbeard.CACHE_DIR = CACHE_DIR
+        sickbeard.FANART_RATINGS = check_setting_str(sickbeard.CFG, 'GUI', 'fanart_ratings', None)
+        if None is not sickbeard.FANART_RATINGS:
+            sickbeard.FANART_RATINGS = ast.literal_eval(sickbeard.FANART_RATINGS or '{}')
+        else:
+            sickbeard.FANART_RATINGS = ast.literal_eval(check_setting_str(sickbeard.CFG, 'GUI', 'backart_ratings', None) or '{}')
+        self.fanart_ratings = copy.deepcopy(sickbeard.FANART_RATINGS)
+        self.cache_dir = CACHE_DIR
+
+    def log_load_msg(self, msg):
+        load_msg = 'Downgrading images to production version'
+        if self.support_load_msg:
+            classes.loading_msg.set_msg_progress(load_msg, msg)
+
+    @staticmethod
+    def _count_files_dirs(base_dir):
+        from lib.scandir.scandir import scandir
+        f = d = 0
+        for e in ek.ek(scandir, base_dir):
+            if e.is_file():
+                f += 1
+            elif e.is_dir():
+                d += 1
+        return f, d
+
+    def _set_progress(self, p_text, c, s):
+        ps = None
+        if 0 == s:
+            ps = 0
+        elif 1 == s and 0 == c:
+            ps = 100
+        elif 1 > c % s:
+            ps = c / s
+        if None is not ps:
+            self.log_load_msg('{!s} {:6.2f}%'.format(p_text, ps))
+
+    def downgrade_old_naming(self):
+        from lib.scandir.scandir import scandir
+        import re
+        from sickbeard.helpers import moveFile
+        from sickbeard.indexers.indexer_config import INDEXER_TVDB, INDEXER_TVRAGE
+
+        import sickbeard
+        if self.fanart_ratings:
+            ne = {}
+            old_k_r = re.compile(r'(\d+):(\d+)')
+            for k, v in self.fanart_ratings.iteritems():
+                nk = old_k_r.search(k)
+                if nk:
+                    if int(nk.group(1)) in [INDEXER_TVDB, INDEXER_TVRAGE]:
+                        ne[nk.group(2)] = self.fanart_ratings[k]
+            self.fanart_ratings = ne
+            sickbeard.CFG.setdefault('GUI', {})['fanart_ratings'] = '%s' % ne
+            sickbeard.CFG.write()
+            sickbeard.FANART_RATINGS = ne
+
+        old_image_cache_dir = ek.ek(os.path.join, self.cache_dir, 'images')
+        new_image_cache_dir = ek.ek(os.path.join, old_image_cache_dir, 'shows')
+        if ek.ek(os.path.isdir, new_image_cache_dir):
+            logger.log('Rollback image names')
+            if not ek.ek(os.path.isdir, ek.ek(os.path.join, old_image_cache_dir, 'thumbnails')):
+                try:
+                    ek.ek(os.makedirs, ek.ek(os.path.join, old_image_cache_dir, 'thumbnails'))
+                except (StandardError, Exception):
+                    pass
+            sd = re.compile(r'^(\d+)-(\d+)$')
+            fc, dc = self._count_files_dirs(new_image_cache_dir)
+            step = dc / float(100)
+            cf = 0
+            p_text = 'Shows'
+            self._set_progress(p_text, 0, 0)
+            for entry in ek.ek(scandir, new_image_cache_dir):
+                if entry.is_dir():
+                    cf += 1
+                    self._set_progress(p_text, cf, step)
+                    old_id = sd.search(entry.name)
+                    if old_id:
+                        if int(old_id.group(1)) not in (INDEXER_TVDB, INDEXER_TVRAGE):
+                            continue
+                        for d_entry in ek.ek(scandir, entry.path):
+                            if d_entry.is_file():
+                                new_name = ek.ek(os.path.join, old_image_cache_dir,
+                                                 '%s.%s' % (old_id.group(2), d_entry.name))
+                                try:
+                                    moveFile(d_entry.path, new_name)
+                                except (StandardError, Exception):
+                                    pass
+                            elif d_entry.is_dir():
+                                if 'fanart' == d_entry.name:
+                                    new_dir_name = ek.ek(os.path.join, old_image_cache_dir, 'fanart', old_id.group(2))
+                                    try:
+                                        moveFile(d_entry.path, new_dir_name)
+                                    except (StandardError, Exception):
+                                        continue
+                                    for n_entry in ek.ek(scandir, new_dir_name):
+                                        if n_entry.is_file():
+                                            new_name = ek.ek(os.path.join, new_dir_name, '%s.%s' %
+                                                             (old_id.group(2), n_entry.name))
+                                            try:
+                                                moveFile(n_entry.path, new_name)
+                                            except (StandardError, Exception):
+                                                pass
+                                elif 'thumbnails' == d_entry.name:
+                                    for s_entry in ek.ek(scandir, d_entry.path):
+                                        new_name = ek.ek(os.path.join, old_image_cache_dir, 'thumbnails',
+                                                         '%s.%s' % (old_id.group(2), s_entry.name))
+                                        try:
+                                            moveFile(s_entry.path, new_name)
+                                        except (StandardError, Exception):
+                                            pass
+                                    # delete empty dir
+                                    try:
+                                        ek.ek(os.rmdir, d_entry.path)
+                                    except (StandardError, Exception):
+                                        pass
+                    # delete empty dir
+                    try:
+                        ek.ek(os.rmdir, entry.path)
+                    except (StandardError, Exception):
+                        pass
+            # delete empty dir
+            try:
+                ek.ek(os.rmdir, new_image_cache_dir)
+            except (StandardError, Exception):
+                pass
+            self._set_progress(p_text, 0, 1)
 
 
 class RollbackBase:
@@ -16,6 +158,13 @@ class RollbackBase:
         self.filename = db.dbFilename(self.db_name)
         self.backup_filename = db.dbFilename(self.db_name, 'bak')
         self.rollback_version = None
+        self.support_load_msg = hasattr(classes, 'LoadingMessage')
+
+    def log_load_msg(self, msg):
+        load_msg = getattr(self, 'load_msg', 'Downgrading %s to production version' % self.db_name)
+        if self.support_load_msg:
+            classes.loading_msg.set_msg_progress(load_msg, msg)
+        logger.log('%s: %s' % (load_msg, msg))
 
     def _delete_file(self, path_file):
         if self._chmod_file(path_file):
@@ -174,6 +323,7 @@ class FailedDb(RollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
+        self.log_load_msg('Downgrading history table')
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
                                 ['CREATE TABLE history (date NUMERIC, size NUMERIC, release TEXT, provider TEXT, '
                                  'old_status NUMERIC, showid NUMERIC, season NUMERIC, episode NUMERIC)'],
@@ -198,6 +348,7 @@ class CacheDb(RollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
+        self.log_load_msg('Recreating provider_cache table')
         self.my_db.mass_action([['DROP TABLE provider_cache'],
                                 ['CREATE TABLE provider_cache (provider TEXT ,name TEXT, season NUMERIC, '
                                  'episodes TEXT, indexerid NUMERIC, url TEXT UNIQUE, time NUMERIC, quality TEXT, '
@@ -259,6 +410,8 @@ class MainDb(RollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_100000(self):
+        ImageRollback().downgrade_old_naming()
+        self.log_load_msg('Downgrading tv_episodes table')
         self.remove_index('tv_episodes', 'idx_tv_episodes_unique')
 
         self.remove_index('tv_episodes', 'idx_tv_episodes_showid_airdate')
@@ -284,6 +437,7 @@ class MainDb(RollbackBase):
 
         self.my_db.action('CREATE INDEX idx_showid ON tv_episodes (showid)')
 
+        self.log_load_msg('Downgrading tv_shows table')
         self.remove_index('tv_shows', 'idx_indexer_id')
         self.my_db.mass_action([['CREATE TABLE backup_tv_shows (show_id INTEGER PRIMARY KEY, indexer_id NUMERIC, '
                                  'indexer NUMERIC, show_name TEXT, location TEXT, network TEXT, genre TEXT, '
@@ -307,6 +461,7 @@ class MainDb(RollbackBase):
                                 ])
         self.my_db.action('CREATE UNIQUE INDEX idx_indexer_id ON tv_shows (indexer_id)')
 
+        self.log_load_msg('Downgrading imdb_info table')
         self.remove_index('imdb_info', 'idx_id_indexer_imdb_info')
 
         self.my_db.mass_action([['ALTER TABLE imdb_info RENAME TO backup_imdb_info'],
@@ -321,6 +476,7 @@ class MainDb(RollbackBase):
                                  'FROM backup_imdb_info WHERE indexer IN (1,2)'],
                                 ['DELETE FROM backup_imdb_info WHERE indexer IN (1,2)']])
 
+        self.log_load_msg('Downgrading blacklist table')
         self.remove_index('blacklist', 'idx_id_indexer_blacklist')
 
         self.my_db.mass_action([['ALTER TABLE blacklist RENAME TO backup_blacklist'],
@@ -331,6 +487,7 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_blacklist WHERE indexer IN (1,2)']
                                 ])
 
+        self.log_load_msg('Downgrading whitelist table')
         self.remove_index('whitelist', 'idx_id_indexer_whitelist')
 
         self.my_db.mass_action([['ALTER TABLE whitelist RENAME TO backup_whitelist'],
@@ -341,6 +498,7 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_whitelist WHERE indexer IN (1,2)']
                                 ])
 
+        self.log_load_msg('Downgrading scene_exceptions table')
         self.remove_index('scene_exceptions', 'idx_id_indexer_scene_exceptions')
 
         self.my_db.mass_action([['ALTER TABLE scene_exceptions RENAME TO backup_scene_exceptions'],
@@ -365,6 +523,7 @@ class MainDb(RollbackBase):
                                 ['DROP TABLE tmp_scene_numbering']
                                 ])
 
+        self.log_load_msg('Downgrading history table')
         self.remove_index('history', 'idx_id_indexer_history')
 
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
