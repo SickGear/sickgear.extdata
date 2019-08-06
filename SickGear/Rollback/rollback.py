@@ -27,7 +27,8 @@ class ImageRollback:
         if None is not sickbeard.FANART_RATINGS:
             sickbeard.FANART_RATINGS = ast.literal_eval(sickbeard.FANART_RATINGS or '{}')
         else:
-            sickbeard.FANART_RATINGS = ast.literal_eval(check_setting_str(sickbeard.CFG, 'GUI', 'backart_ratings', None) or '{}')
+            sickbeard.FANART_RATINGS = ast.literal_eval(
+                check_setting_str(sickbeard.CFG, 'GUI', 'backart_ratings', None) or '{}')
         self.fanart_ratings = copy.deepcopy(sickbeard.FANART_RATINGS)
         self.cache_dir = CACHE_DIR
 
@@ -40,11 +41,14 @@ class ImageRollback:
     def _count_files_dirs(base_dir):
         from lib.scandir.scandir import scandir
         f = d = 0
-        for e in ek.ek(scandir, base_dir):
-            if e.is_file():
-                f += 1
-            elif e.is_dir():
-                d += 1
+        try:
+            for e in ek.ek(scandir, base_dir):
+                if e.is_file():
+                    f += 1
+                elif e.is_dir():
+                    d += 1
+        except OSError as e:
+            logger.log('Unable to count files %s / %s' % (repr(e), e), logger.WARNING)
         return f, d
 
     def _set_progress(self, p_text, c, s):
@@ -62,16 +66,20 @@ class ImageRollback:
         from lib.scandir.scandir import scandir
         import re
         from sickbeard.helpers import moveFile
-        from sickbeard.indexers.indexer_config import INDEXER_TVDB, INDEXER_TVRAGE
+        try:
+            from sickbeard.indexers.indexer_config import INDEXER_TVDB as TVINFO_TVDB, INDEXER_TVRAGE as TVINFO_TVRAGE
+        except ImportError:
+            from sickbeard.indexers.indexer_config import TVINFO_TVDB, TVINFO_TVRAGE
 
         import sickbeard
+
         if self.fanart_ratings:
             ne = {}
             old_k_r = re.compile(r'(\d+):(\d+)')
             for k, v in self.fanart_ratings.iteritems():
                 nk = old_k_r.search(k)
                 if nk:
-                    if int(nk.group(1)) in [INDEXER_TVDB, INDEXER_TVRAGE]:
+                    if int(nk.group(1)) in [TVINFO_TVDB, TVINFO_TVRAGE]:
                         ne[nk.group(2)] = self.fanart_ratings[k]
             self.fanart_ratings = ne
             sickbeard.CFG.setdefault('GUI', {})['fanart_ratings'] = '%s' % ne
@@ -99,7 +107,7 @@ class ImageRollback:
                     self._set_progress(p_text, cf, step)
                     old_id = sd.search(entry.name)
                     if old_id:
-                        if int(old_id.group(1)) not in (INDEXER_TVDB, INDEXER_TVRAGE):
+                        if int(old_id.group(1)) not in (TVINFO_TVDB, TVINFO_TVRAGE):
                             continue
                         for d_entry in ek.ek(scandir, entry.path):
                             if d_entry.is_file():
@@ -116,12 +124,20 @@ class ImageRollback:
                                         moveFile(d_entry.path, new_dir_name)
                                     except (StandardError, Exception):
                                         continue
-                                    for n_entry in ek.ek(scandir, new_dir_name):
-                                        if n_entry.is_file():
-                                            new_name = ek.ek(os.path.join, new_dir_name, '%s.%s' %
-                                                             (old_id.group(2), n_entry.name))
+                                    try:
+                                        rename_args = []
+                                        for n_entry in filter(lambda n_e: n_e.is_file(), ek.ek(scandir, new_dir_name)):
+                                            # prevent renaming items that already start with with id
+                                            if n_entry.name.startswith(old_id.group(2)):
+                                                continue
+                                            rename_args += [(n_entry.path, ek.ek(
+                                                os.path.join, new_dir_name, '%s.%s' % (old_id.group(2), n_entry.name)))]
+                                    except OSError as e:
+                                        logger.log('Unable to stat dirs %s / %s' % (repr(e), e), logger.WARNING)
+                                    else:
+                                        for args in rename_args:
                                             try:
-                                                moveFile(n_entry.path, new_name)
+                                                moveFile(*args)
                                             except (StandardError, Exception):
                                                 pass
                                 elif 'thumbnails' == d_entry.name:
