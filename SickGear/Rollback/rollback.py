@@ -427,9 +427,9 @@ class MainDb(RollbackBase):
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_100000(self):
         ImageRollback().downgrade_old_naming()
+
         self.log_load_msg('Downgrading tv_episodes table')
         self.remove_index('tv_episodes', 'idx_tv_episodes_unique')
-
         self.remove_index('tv_episodes', 'idx_tv_episodes_showid_airdate')
         self.my_db.mass_action([['CREATE TABLE backup_tv_episodes (episode_id INTEGER PRIMARY KEY, showid NUMERIC, '
                                  'indexerid NUMERIC, indexer NUMERIC, name TEXT, season NUMERIC, episode NUMERIC, '
@@ -450,7 +450,6 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM tv_episodes WHERE indexer NOT IN (1,2)']
                                 ])
         self.my_db.action('CREATE INDEX idx_tv_episodes_showid_airdate ON tv_episodes(showid,airdate)')
-
         self.my_db.action('CREATE INDEX idx_showid ON tv_episodes (showid)')
 
         self.log_load_msg('Downgrading tv_shows table')
@@ -462,16 +461,17 @@ class MainDb(RollbackBase):
                                  'lang TEXT, subtitles NUMERIC, notify_list TEXT, imdb_id TEXT, '
                                  'last_update_indexer NUMERIC, dvdorder NUMERIC, archive_firstmatch NUMERIC, '
                                  'rls_require_words TEXT, rls_ignore_words TEXT, sports NUMERIC, anime NUMERIC, '
-                                 'scene NUMERIC, overview TEXT, tag TEXT)'],
+                                 'scene NUMERIC, overview TEXT, tag TEXT, prune INT DEFAULT 0)'],
                                 ['REPLACE INTO backup_tv_shows (show_id, indexer_id, indexer, show_name, location, '
                                  'network, genre, classification, runtime, quality, airs, status, flatten_folders, '
                                  'paused, startyear, air_by_date, lang, subtitles, notify_list, imdb_id, '
                                  'last_update_indexer, dvdorder, archive_firstmatch, rls_require_words, '
-                                 'rls_ignore_words, sports, anime, scene, overview, tag) SELECT show_id, indexer_id, '
+                                 'rls_ignore_words, sports, anime, scene, overview, tag, prune)'
+                                 ' SELECT show_id, indexer_id, '
                                  'indexer, show_name, location, network, genre, classification, runtime, quality, '
                                  'airs, status, flatten_folders, paused, startyear, air_by_date, lang, subtitles, '
                                  'notify_list, imdb_id, last_update_indexer, dvdorder, archive_firstmatch, '
-                                 'rls_require_words, rls_ignore_words, sports, anime, scene, overview, tag '
+                                 'rls_require_words, rls_ignore_words, sports, anime, scene, overview, tag, prune '
                                  'FROM tv_shows WHERE indexer NOT IN (1,2)'],
                                 ['DELETE FROM tv_shows WHERE indexer NOT IN (1,2)']
                                 ])
@@ -479,7 +479,6 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading imdb_info table')
         self.remove_index('imdb_info', 'idx_id_indexer_imdb_info')
-
         self.my_db.mass_action([['ALTER TABLE imdb_info RENAME TO backup_imdb_info'],
                                 ['CREATE TABLE imdb_info (indexer_id INTEGER PRIMARY KEY, imdb_id TEXT, '
                                  'title TEXT, year NUMERIC, akas TEXT, runtimes NUMERIC, genres TEXT, '
@@ -494,7 +493,6 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading blacklist table')
         self.remove_index('blacklist', 'idx_id_indexer_blacklist')
-
         self.my_db.mass_action([['ALTER TABLE blacklist RENAME TO backup_blacklist'],
                                 ['CREATE TABLE blacklist (show_id INTEGER, range TEXT, keyword TEXT)'],
                                 ['REPLACE INTO blacklist (show_id, range, keyword) '
@@ -505,7 +503,6 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading whitelist table')
         self.remove_index('whitelist', 'idx_id_indexer_whitelist')
-
         self.my_db.mass_action([['ALTER TABLE whitelist RENAME TO backup_whitelist'],
                                 ['CREATE TABLE whitelist (show_id INTEGER, range TEXT, keyword TEXT)'],
                                 ['REPLACE INTO whitelist (show_id, range, keyword) '
@@ -516,7 +513,6 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading scene_exceptions table')
         self.remove_index('scene_exceptions', 'idx_id_indexer_scene_exceptions')
-
         self.my_db.mass_action([['ALTER TABLE scene_exceptions RENAME TO backup_scene_exceptions'],
                                 ['CREATE TABLE scene_exceptions (exception_id INTEGER PRIMARY KEY, '
                                  'indexer_id INTEGER KEY, show_name TEXT, season NUMERIC, custom NUMERIC)'],
@@ -526,6 +522,7 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_scene_exceptions WHERE indexer IN (1,2)']
                                 ])
 
+        self.log_load_msg('Downgrading scene_numbering table')
         self.my_db.mass_action([['ALTER TABLE scene_numbering RENAME TO tmp_scene_numbering'],
                                 ['CREATE TABLE scene_numbering (indexer TEXT, indexer_id INTEGER, season INTEGER, '
                                  'episode INTEGER, scene_season INTEGER, scene_episode INTEGER, '
@@ -541,7 +538,6 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading history table')
         self.remove_index('history', 'idx_id_indexer_history')
-
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
                                 ['CREATE TABLE history (action NUMERIC, date NUMERIC, showid NUMERIC, season NUMERIC, '
                                  'episode NUMERIC, quality NUMERIC, resource TEXT, provider TEXT, version NUMERIC)'],
