@@ -4,11 +4,17 @@ import os
 import stat
 
 from sickbeard import db, common, classes, logger
+# noinspection PyPep8Naming
 from sickbeard import encodingKludge as ek
-from sickbeard.helpers import copyFile
+try:
+    from sickbeard.helpers import copy_file
+except ImportError:
+    # deprecated_item, remove this 2020
+    # noinspection PyPep8Naming
+    from sickbeard.helpers import copyFile as copy_file
 
 
-class ImageRollback:
+class ImageRollback(object):
     def __init__(self):
         self.support_load_msg = hasattr(classes, 'LoadingMessage')
         import sickbeard
@@ -65,7 +71,12 @@ class ImageRollback:
     def downgrade_old_naming(self):
         from lib.scandir.scandir import scandir
         import re
-        from sickbeard.helpers import moveFile
+        try:
+            from sickbeard.helpers import move_file
+        except ImportError:
+            # deprecated_item, remove this 2020
+            # noinspection PyPep8Naming
+            from sickbeard.helpers import moveFile as move_file
         try:
             from sickbeard.indexers.indexer_config import INDEXER_TVDB as TVINFO_TVDB, INDEXER_TVRAGE as TVINFO_TVRAGE
         except ImportError:
@@ -93,7 +104,7 @@ class ImageRollback:
             if not ek.ek(os.path.isdir, ek.ek(os.path.join, old_image_cache_dir, 'thumbnails')):
                 try:
                     ek.ek(os.makedirs, ek.ek(os.path.join, old_image_cache_dir, 'thumbnails'))
-                except (StandardError, Exception):
+                except (BaseException, Exception):
                     pass
             sd = re.compile(r'^(\d+)-(\d+)$')
             fc, dc = self._count_files_dirs(new_image_cache_dir)
@@ -114,15 +125,15 @@ class ImageRollback:
                                 new_name = ek.ek(os.path.join, old_image_cache_dir,
                                                  '%s.%s' % (old_id.group(2), d_entry.name))
                                 try:
-                                    moveFile(d_entry.path, new_name)
-                                except (StandardError, Exception):
+                                    move_file(d_entry.path, new_name)
+                                except (BaseException, Exception):
                                     pass
                             elif d_entry.is_dir():
                                 if 'fanart' == d_entry.name:
                                     new_dir_name = ek.ek(os.path.join, old_image_cache_dir, 'fanart', old_id.group(2))
                                     try:
-                                        moveFile(d_entry.path, new_dir_name)
-                                    except (StandardError, Exception):
+                                        move_file(d_entry.path, new_dir_name)
+                                    except (BaseException, Exception):
                                         continue
                                     try:
                                         rename_args = []
@@ -137,36 +148,36 @@ class ImageRollback:
                                     else:
                                         for args in rename_args:
                                             try:
-                                                moveFile(*args)
-                                            except (StandardError, Exception):
+                                                move_file(*args)
+                                            except (BaseException, Exception):
                                                 pass
                                 elif 'thumbnails' == d_entry.name:
                                     for s_entry in ek.ek(scandir, d_entry.path):
                                         new_name = ek.ek(os.path.join, old_image_cache_dir, 'thumbnails',
                                                          '%s.%s' % (old_id.group(2), s_entry.name))
                                         try:
-                                            moveFile(s_entry.path, new_name)
-                                        except (StandardError, Exception):
+                                            move_file(s_entry.path, new_name)
+                                        except (BaseException, Exception):
                                             pass
                                     # delete empty dir
                                     try:
                                         ek.ek(os.rmdir, d_entry.path)
-                                    except (StandardError, Exception):
+                                    except (BaseException, Exception):
                                         pass
                     # delete empty dir
                     try:
                         ek.ek(os.rmdir, entry.path)
-                    except (StandardError, Exception):
+                    except (BaseException, Exception):
                         pass
             # delete empty dir
             try:
                 ek.ek(os.rmdir, new_image_cache_dir)
-            except (StandardError, Exception):
+            except (BaseException, Exception):
                 pass
             self._set_progress(p_text, 0, 1)
 
 
-class RollbackBase:
+class RollbackBase(object):
     def __init__(self, dbname):
         self.db_versions = {}
         self.db_name = dbname
@@ -188,7 +199,7 @@ class RollbackBase:
                 os.remove(path_file)
                 if not ek.ek(os.path.isfile, path_file):
                     return True
-            except (StandardError, Exception):
+            except (BaseException, Exception):
                 pass
 
     @staticmethod
@@ -206,7 +217,7 @@ class RollbackBase:
                 return True
 
     def make_backup(self):
-        copyFile(self.filename, self.backup_filename)
+        copy_file(self.filename, self.backup_filename)
 
     def remove_backup(self):
         self._delete_file(self.backup_filename)
@@ -215,7 +226,7 @@ class RollbackBase:
         if (ek.ek(os.path.isfile, self.backup_filename) and
                 ek.ek(os.path.isfile, self.filename)):
             if self._delete_file(self.filename):
-                copyFile(self.backup_filename, self.filename)
+                copy_file(self.backup_filename, self.filename)
                 self.remove_backup()
 
     def remove_table(self, name):
@@ -321,7 +332,7 @@ class RollbackBase:
                     self.remove_backup()
                     return True
             self.restore_backup()
-        except (StandardError, Exception) as e:
+        except (BaseException, Exception) as e:
             self.restore_backup()
             if raise_exception:
                 raise
@@ -623,14 +634,15 @@ class MainDb(RollbackBase):
             db.upgradeDatabase(my_cache_db, cache_db.InitialSchema)
 
         if self.my_db.hasTable('scene_exceptions'):
-            sql_results = self.my_db.action('SELECT *' + ' FROM scene_exceptions')
+            sql_result = self.my_db.action('SELECT *' + ' FROM scene_exceptions')
             cs = []
-            for r in sql_results:
+            for cur_result in sql_result:
                 cs.append(
                     ['INSERT OR REPLACE INTO'
                      + ' scene_exceptions (exception_id, indexer_id, show_name, season, custom)'
                      + ' VALUES (?,?,?,?,?)', [
-                        r['exception_id'], r['indexer_id'], r['show_name'], r['season'], r['custom']]])
+                        cur_result['exception_id'], cur_result['indexer_id'],
+                        cur_result['show_name'], cur_result['season'], cur_result['custom']]])
 
             if 0 < len(cs):
                 my_cache_db.mass_action(cs)
