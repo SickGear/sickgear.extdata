@@ -332,7 +332,7 @@ class RollbackBase(object):
                     self.remove_backup()
                     return True
             self.restore_backup()
-        except (BaseException, Exception) as e:
+        except (BaseException, Exception):
             self.restore_backup()
             if raise_exception:
                 raise
