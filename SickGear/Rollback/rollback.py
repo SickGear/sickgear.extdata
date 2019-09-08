@@ -2,6 +2,7 @@
 
 import os
 import stat
+import sys
 
 from sickbeard import db, common, classes, logger
 # noinspection PyPep8Naming
@@ -9,9 +10,30 @@ from sickbeard import encodingKludge as ek
 try:
     from sickbeard.helpers import copy_file
 except ImportError:
-    # deprecated_item, remove this 2020
+    """ deprecated_item, remove in 2020 """
     # noinspection PyPep8Naming
     from sickbeard.helpers import copyFile as copy_file
+
+PY2 = 2 == sys.version_info[0]
+
+if not PY2:
+    integer_types = (int, long)
+
+    def list_filter(*args):
+        return list(filter(*args))
+
+    def iteritems(d, **kw):
+        return iter(d.items(**kw))
+else:
+    # Python 2
+    integer_types = (int,)
+
+    def list_filter(*args):
+        return filter(*args)
+
+    def iteritems(d, **kw):
+        # noinspection PyCompatibility
+        return d.iteritems(**kw)
 
 
 class ImageRollback(object):
@@ -74,7 +96,7 @@ class ImageRollback(object):
         try:
             from sickbeard.helpers import move_file
         except ImportError:
-            # deprecated_item, remove this 2020
+            """ deprecated_item, remove in 2020 """
             # noinspection PyPep8Naming
             from sickbeard.helpers import moveFile as move_file
         try:
@@ -87,7 +109,7 @@ class ImageRollback(object):
         if self.fanart_ratings:
             ne = {}
             old_k_r = re.compile(r'(\d+):(\d+)')
-            for k, v in self.fanart_ratings.iteritems():
+            for k, v in iteritems(self.fanart_ratings):
                 nk = old_k_r.search(k)
                 if nk:
                     if int(nk.group(1)) in [TVINFO_TVDB, TVINFO_TVRAGE]:
@@ -137,7 +159,7 @@ class ImageRollback(object):
                                         continue
                                     try:
                                         rename_args = []
-                                        for n_entry in filter(lambda n_e: n_e.is_file(), ek.ek(scandir, new_dir_name)):
+                                        for n_entry in list_filter(lambda n_e: n_e.is_file(), ek.ek(scandir, new_dir_name)):
                                             # prevent renaming items that already start with with id
                                             if n_entry.name.startswith(old_id.group(2)):
                                                 continue
@@ -240,7 +262,7 @@ class RollbackBase(object):
     def remove_column(self, table, column):
         # get old table columns and store the ones we want to keep
         result = self.my_db.select('pragma table_info([%s])' % table)
-        kept_columns = filter(lambda col: column != col['name'], result)
+        kept_columns = list_filter(lambda col: column != col['name'], result)
         # input sanitisation
         if not kept_columns:
             raise ValueError('No table columns found, is table name correct: %s' % table)
@@ -286,13 +308,17 @@ class RollbackBase(object):
 
         # create new temporary table and copy the old table data across, barring the removed column
         self.my_db.action(sql)
+        # noinspection SqlResolve
         self.my_db.action('INSERT INTO [%s_new] SELECT %s FROM [%s]' % (table, kept_columns_names, table))
 
         # copy the old indexes from the old table
+        # noinspection SqlResolve
         result = self.my_db.select('SELECT sql FROM sqlite_master WHERE tbl_name=? and type="index"', [table])
 
         # remove the old table and rename the new table to take it's place
+        # noinspection SqlResolve
         self.my_db.action('DROP TABLE [%s]' % table)
+        # noinspection SqlResolve
         self.my_db.action('ALTER TABLE [%s_new] RENAME TO [%s]' % (table, table))
 
         # write any indexes to the new table
@@ -315,7 +341,7 @@ class RollbackBase(object):
         try:
             c_version = self.my_db.checkDBVersion()
             base_db_is_test = self.is_test_db()
-            if isinstance(rollback_version, (int, long)):
+            if isinstance(rollback_version, integer_types):
                 if (rollback_version < c_version or base_db_is_test) and c_version in self.db_versions:
                     while True:
                         if c_version not in self.db_versions:
@@ -352,10 +378,10 @@ class FailedDb(RollbackBase):
     def rollback_test_100000(self):
         self.log_load_msg('Downgrading history table')
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
-                                ['CREATE TABLE history (date NUMERIC, size NUMERIC, release TEXT, provider TEXT, '
+                                ['CREATE TABLE history (date NUMERIC, size NUMERIC, `release` TEXT, provider TEXT, '
                                  'old_status NUMERIC, showid NUMERIC, season NUMERIC, episode NUMERIC)'],
-                                ['REPLACE INTO history (date, size, release, provider, old_status, showid, '
-                                 'season, episode) SELECT date, size, release, provider, old_status, showid, '
+                                ['REPLACE INTO history (date, size, `release`, provider, old_status, showid, '
+                                 'season, episode) SELECT date, size, `release`, provider, old_status, showid, '
                                  'season, episode FROM backup_history WHERE indexer IN (0,1,2)'],
                                 ['DELETE FROM backup_history WHERE indexer IN (0,1,2)'],
                                 ])
@@ -442,6 +468,7 @@ class MainDb(RollbackBase):
         self.log_load_msg('Downgrading tv_episodes table')
         self.remove_index('tv_episodes', 'idx_tv_episodes_unique')
         self.remove_index('tv_episodes', 'idx_tv_episodes_showid_airdate')
+        # noinspection SqlResolve
         self.my_db.mass_action([['CREATE TABLE backup_tv_episodes (episode_id INTEGER PRIMARY KEY, showid NUMERIC, '
                                  'indexerid NUMERIC, indexer NUMERIC, name TEXT, season NUMERIC, episode NUMERIC, '
                                  'description TEXT, airdate NUMERIC, hasnfo NUMERIC, hastbn NUMERIC, status NUMERIC, '
@@ -465,6 +492,7 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading tv_shows table')
         self.remove_index('tv_shows', 'idx_indexer_id')
+        # noinspection SqlResolve
         self.my_db.mass_action([['CREATE TABLE backup_tv_shows (show_id INTEGER PRIMARY KEY, indexer_id NUMERIC, '
                                  'indexer NUMERIC, show_name TEXT, location TEXT, network TEXT, genre TEXT, '
                                  'classification TEXT, runtime NUMERIC, quality NUMERIC, airs TEXT, status TEXT, '
@@ -490,6 +518,7 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading imdb_info table')
         self.remove_index('imdb_info', 'idx_id_indexer_imdb_info')
+        # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE imdb_info RENAME TO backup_imdb_info'],
                                 ['CREATE TABLE imdb_info (indexer_id INTEGER PRIMARY KEY, imdb_id TEXT, '
                                  'title TEXT, year NUMERIC, akas TEXT, runtimes NUMERIC, genres TEXT, '
@@ -504,6 +533,7 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading blacklist table')
         self.remove_index('blacklist', 'idx_id_indexer_blacklist')
+        # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE blacklist RENAME TO backup_blacklist'],
                                 ['CREATE TABLE blacklist (show_id INTEGER, range TEXT, keyword TEXT)'],
                                 ['REPLACE INTO blacklist (show_id, range, keyword) '
@@ -514,6 +544,7 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading whitelist table')
         self.remove_index('whitelist', 'idx_id_indexer_whitelist')
+        # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE whitelist RENAME TO backup_whitelist'],
                                 ['CREATE TABLE whitelist (show_id INTEGER, range TEXT, keyword TEXT)'],
                                 ['REPLACE INTO whitelist (show_id, range, keyword) '
@@ -524,6 +555,7 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading scene_exceptions table')
         self.remove_index('scene_exceptions', 'idx_id_indexer_scene_exceptions')
+        # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE scene_exceptions RENAME TO backup_scene_exceptions'],
                                 ['CREATE TABLE scene_exceptions (exception_id INTEGER PRIMARY KEY, '
                                  'indexer_id INTEGER KEY, show_name TEXT, season NUMERIC, custom NUMERIC)'],
@@ -534,6 +566,7 @@ class MainDb(RollbackBase):
                                 ])
 
         self.log_load_msg('Downgrading scene_numbering table')
+        # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE scene_numbering RENAME TO tmp_scene_numbering'],
                                 ['CREATE TABLE scene_numbering (indexer TEXT, indexer_id INTEGER, season INTEGER, '
                                  'episode INTEGER, scene_season INTEGER, scene_episode INTEGER, '
@@ -549,6 +582,7 @@ class MainDb(RollbackBase):
 
         self.log_load_msg('Downgrading history table')
         self.remove_index('history', 'idx_id_indexer_history')
+        # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
                                 ['CREATE TABLE history (action NUMERIC, date NUMERIC, showid NUMERIC, season NUMERIC, '
                                  'episode NUMERIC, quality NUMERIC, resource TEXT, provider TEXT, version NUMERIC)'],
@@ -583,6 +617,7 @@ class MainDb(RollbackBase):
     def rollback_20006(self):
         self.remove_index('tv_episodes', 'idx_tv_ep_ids')
 
+        # noinspection SqlResolve
         sql_result = self.my_db.select('SELECT rowid, quality FROM history WHERE action LIKE "%%%02d"' %
                                        common.SNATCHED_PROPER)
 
