@@ -105,6 +105,8 @@ logger.sb_log_instance = test_logger('')
 classes.loading_msg = test_load_msg()
 
 try:
+    cm = rollback.ConfigFile()
+    cm.run(19)
     # rc = rollback.CacheDb()
     # rc.load_msg = 'Test Cache'
     # rc.run(4, raise_exception=True)

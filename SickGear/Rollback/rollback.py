@@ -3,7 +3,9 @@
 import os
 import stat
 import sys
+import time
 
+import sickbeard
 from sickbeard import db, common, classes, logger
 # noinspection PyPep8Naming
 from sickbeard import encodingKludge as ek
@@ -200,20 +202,30 @@ class ImageRollback(object):
 
 
 class RollbackBase(object):
-    def __init__(self, dbname):
-        self.db_versions = {}
-        self.db_name = dbname
-        self.my_db = db.DBConnection(self.db_name)
-        self.filename = db.dbFilename(self.db_name)
-        self.backup_filename = db.dbFilename(self.db_name, 'bak')
+    def __init__(self):
         self.rollback_version = None
         self.support_load_msg = hasattr(classes, 'LoadingMessage')
+        self.filename = ''
+        self.backup_filename = ''
 
-    def log_load_msg(self, msg):
-        load_msg = getattr(self, 'load_msg', 'Downgrading %s to production version' % self.db_name)
+    def log_load_msg(self, msg, default_msg=''):
+        load_msg = getattr(self, 'load_msg', default_msg)
         if self.support_load_msg:
             classes.loading_msg.set_msg_progress(load_msg, msg)
         logger.log('%s: %s' % (load_msg, msg))
+
+    def make_backup(self):
+        copy_file(self.filename, self.backup_filename)
+
+    def remove_backup(self):
+        self._delete_file(self.backup_filename)
+
+    def restore_backup(self):
+        if (ek.ek(os.path.isfile, self.backup_filename) and
+                ek.ek(os.path.isfile, self.filename)):
+            if self._delete_file(self.filename):
+                copy_file(self.backup_filename, self.filename)
+                self.remove_backup()
 
     def _delete_file(self, path_file):
         if self._chmod_file(path_file):
@@ -238,18 +250,116 @@ class RollbackBase(object):
             if file_attribute & stat.S_IWRITE:
                 return True
 
-    def make_backup(self):
-        copy_file(self.filename, self.backup_filename)
+    def run(self, rollback_version, raise_exception=False):
+        self.rollback_version = rollback_version
+        self.make_backup()
 
-    def remove_backup(self):
-        self._delete_file(self.backup_filename)
 
-    def restore_backup(self):
-        if (ek.ek(os.path.isfile, self.backup_filename) and
-                ek.ek(os.path.isfile, self.filename)):
-            if self._delete_file(self.filename):
-                copy_file(self.backup_filename, self.filename)
+class ConfigFile(RollbackBase):
+    def __init__(self):
+        super(ConfigFile, self).__init__()
+        self.filename = sickbeard.CFG.filename
+        self.backup_filename = '%s.bak' % self.filename
+        self.config_versions = {20: self.rollback_v20}
+
+    def rollback_v20(self):
+        global sickbeard
+        growl_host = sickbeard.CFG['Growl']['growl_host']
+        new_host, new_pass = '', ''
+        if growl_host:
+            h = growl_host.split(',')[0].strip().split('@')
+            if 2 == len(h):
+                new_host = h[1]
+                new_pass = h[0]
+            else:
+                new_host = h[0]
+        if new_pass:
+            sickbeard.CFG['Growl']['growl_password'] = self.encrypt(new_pass)
+
+        sickbeard.CFG['Growl']['growl_host'] = new_host
+
+        sickbeard.CFG['General']['config_version'] = 19
+        sickbeard.CFG.write()
+        sickbeard.GROWL_HOST = new_host
+        sickbeard.GROWL_PASSWORD = new_pass
+
+    # Encryption Functions
+    def encrypt(self, data, do_decrypt=False):
+        encryption_version = self.check_setting_int(sickbeard.CFG, 'General', 'encryption_version', 0)
+        if 1 != encryption_version:
+            # Version 0: Plain text
+            return data
+        import uuid
+        from itertools import cycle
+        if PY2:
+            from base64 import decodestring, encodestring
+            b64decodebytes = decodestring
+            b64encodebytes = encodestring
+            from itertools import izip as uzip
+        else:
+            from base64 import decodebytes, encodebytes
+            b64decodebytes = decodebytes
+            b64encodebytes = encodebytes
+            uzip = zip
+        unique_key1 = hex(uuid.getnode() ** 2)  # Used in encryption v1
+        # Version 1: Simple XOR encryption (this is not very secure, but works)
+        if do_decrypt:
+            return ''.join([chr(ord(x) ^ ord(y)) for (x, y) in uzip(b64decodebytes(data), cycle(unique_key1))])
+
+        return b64encodebytes(
+            ''.join([chr(ord(x) ^ ord(y)) for (x, y) in uzip(data, cycle(unique_key1))])).strip()
+
+    @staticmethod
+    def check_setting_int(config, cfg_name, item_name, def_val):
+        try:
+            my_val = int(config[cfg_name][item_name])
+        except(StandardError, Exception):
+            my_val = def_val
+            try:
+                config[cfg_name][item_name] = my_val
+            except(StandardError, Exception):
+                config[cfg_name] = {}
+                config[cfg_name][item_name] = my_val
+        logger.log('%s -> %s' % (item_name, my_val), logger.DEBUG)
+        return my_val
+
+    def log_load_msg(self, msg, **kwargs):
+        super(ConfigFile, self).log_load_msg(msg, default_msg='Downgrading config.ini')
+
+    def run(self, rollback_version, raise_exception=False):
+        super(ConfigFile, self).run(rollback_version, raise_exception)
+        try:
+            c_version = self.check_setting_int(sickbeard.CFG, 'General', 'config_version', 0)
+            while c_version > self.rollback_version:
+                self.log_load_msg('Version %s' % c_version)
+                if c_version not in self.config_versions:
+                    break
+                self.config_versions[c_version]()
+                c_version = self.check_setting_int(sickbeard.CFG, 'General', 'config_version', 0)
+            if c_version == self.rollback_version:
+                self.log_load_msg('Finished version %s' % c_version)
                 self.remove_backup()
+            else:
+                self.log_load_msg('Failed version %s, restoring and exiting' % c_version)
+                self.restore_backup()
+                time.sleep(3)
+        except (BaseException, Exception):
+            self.restore_backup()
+            if raise_exception:
+                raise
+
+
+class DBRollbackBase(RollbackBase):
+    def __init__(self, dbname):
+        super(DBRollbackBase, self).__init__()
+        self.db_versions = {}
+        self.db_name = dbname
+        self.my_db = db.DBConnection(self.db_name)
+        self.filename = db.dbFilename(self.db_name)
+        self.backup_filename = db.dbFilename(self.db_name, 'bak')
+
+    def log_load_msg(self, msg, **kwargs):
+        super(DBRollbackBase, self).log_load_msg(msg, default_msg='Downgrading %s to production version' % self.db_name)
 
     def remove_table(self, name):
         if self.my_db.hasTable(name):
@@ -365,9 +475,9 @@ class RollbackBase(object):
         return False
 
 
-class FailedDb(RollbackBase):
+class FailedDb(DBRollbackBase):
     def __init__(self):
-        RollbackBase.__init__(self, dbname='failed.db')
+        DBRollbackBase.__init__(self, dbname='failed.db')
         self.db_versions = {
             # standalone test db rollbacks (db version >=100.000)
             100000: self.rollback_test_100000,
@@ -376,7 +486,7 @@ class FailedDb(RollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
-        self.log_load_msg('Downgrading history table')
+        self.log_load_msg('Downgrading history table', )
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
                                 ['CREATE TABLE history (date NUMERIC, size NUMERIC, `release` TEXT, provider TEXT, '
                                  'old_status NUMERIC, showid NUMERIC, season NUMERIC, episode NUMERIC)'],
@@ -388,9 +498,9 @@ class FailedDb(RollbackBase):
         self.set_db_version(1)
 
 
-class CacheDb(RollbackBase):
+class CacheDb(DBRollbackBase):
     def __init__(self):
-        RollbackBase.__init__(self, dbname='cache.db')
+        DBRollbackBase.__init__(self, dbname='cache.db')
         self.db_versions = {
             # standalone test db rollbacks (db version >=100.000)
             100000: self.rollback_test_100000,
@@ -401,7 +511,7 @@ class CacheDb(RollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
-        self.log_load_msg('Recreating provider_cache table')
+        self.log_load_msg('Recreating provider_cache table', )
         self.my_db.mass_action([['DROP TABLE provider_cache'],
                                 ['CREATE TABLE provider_cache (provider TEXT ,name TEXT, season NUMERIC, '
                                  'episodes TEXT, indexerid NUMERIC, url TEXT UNIQUE, time NUMERIC, quality TEXT, '
@@ -432,9 +542,9 @@ class CacheDb(RollbackBase):
         self.set_db_version(2)
 
 
-class MainDb(RollbackBase):
+class MainDb(DBRollbackBase):
     def __init__(self):
-        RollbackBase.__init__(self, 'sickbeard.db')
+        DBRollbackBase.__init__(self, 'sickbeard.db')
         self.db_versions = {
             # test db's
             100000: self.rollback_100000,
@@ -465,7 +575,7 @@ class MainDb(RollbackBase):
     def rollback_100000(self):
         ImageRollback().downgrade_old_naming()
 
-        self.log_load_msg('Downgrading tv_episodes table')
+        self.log_load_msg('Downgrading tv_episodes table', )
         self.remove_index('tv_episodes', 'idx_tv_episodes_unique')
         self.remove_index('tv_episodes', 'idx_tv_episodes_showid_airdate')
         # noinspection SqlResolve
@@ -490,7 +600,7 @@ class MainDb(RollbackBase):
         self.my_db.action('CREATE INDEX idx_tv_episodes_showid_airdate ON tv_episodes(showid,airdate)')
         self.my_db.action('CREATE INDEX idx_showid ON tv_episodes (showid)')
 
-        self.log_load_msg('Downgrading tv_shows table')
+        self.log_load_msg('Downgrading tv_shows table', )
         self.remove_index('tv_shows', 'idx_indexer_id')
         # noinspection SqlResolve
         self.my_db.mass_action([['CREATE TABLE backup_tv_shows (show_id INTEGER PRIMARY KEY, indexer_id NUMERIC, '
@@ -516,7 +626,7 @@ class MainDb(RollbackBase):
                                 ])
         self.my_db.action('CREATE UNIQUE INDEX idx_indexer_id ON tv_shows (indexer_id)')
 
-        self.log_load_msg('Downgrading imdb_info table')
+        self.log_load_msg('Downgrading imdb_info table', )
         self.remove_index('imdb_info', 'idx_id_indexer_imdb_info')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE imdb_info RENAME TO backup_imdb_info'],
@@ -531,7 +641,7 @@ class MainDb(RollbackBase):
                                  'FROM backup_imdb_info WHERE indexer IN (1,2)'],
                                 ['DELETE FROM backup_imdb_info WHERE indexer IN (1,2)']])
 
-        self.log_load_msg('Downgrading blacklist table')
+        self.log_load_msg('Downgrading blacklist table', )
         self.remove_index('blacklist', 'idx_id_indexer_blacklist')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE blacklist RENAME TO backup_blacklist'],
@@ -542,7 +652,7 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_blacklist WHERE indexer IN (1,2)']
                                 ])
 
-        self.log_load_msg('Downgrading whitelist table')
+        self.log_load_msg('Downgrading whitelist table', )
         self.remove_index('whitelist', 'idx_id_indexer_whitelist')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE whitelist RENAME TO backup_whitelist'],
@@ -553,7 +663,7 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_whitelist WHERE indexer IN (1,2)']
                                 ])
 
-        self.log_load_msg('Downgrading scene_exceptions table')
+        self.log_load_msg('Downgrading scene_exceptions table', )
         self.remove_index('scene_exceptions', 'idx_id_indexer_scene_exceptions')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE scene_exceptions RENAME TO backup_scene_exceptions'],
@@ -565,7 +675,7 @@ class MainDb(RollbackBase):
                                 ['DELETE FROM backup_scene_exceptions WHERE indexer IN (1,2)']
                                 ])
 
-        self.log_load_msg('Downgrading scene_numbering table')
+        self.log_load_msg('Downgrading scene_numbering table', )
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE scene_numbering RENAME TO tmp_scene_numbering'],
                                 ['CREATE TABLE scene_numbering (indexer TEXT, indexer_id INTEGER, season INTEGER, '
@@ -580,7 +690,7 @@ class MainDb(RollbackBase):
                                 ['DROP TABLE tmp_scene_numbering']
                                 ])
 
-        self.log_load_msg('Downgrading history table')
+        self.log_load_msg('Downgrading history table', )
         self.remove_index('history', 'idx_id_indexer_history')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
