@@ -10,7 +10,10 @@ sys.path.insert(1, '../../../SickGear')
 
 import sickbeard
 from sickbeard import logger, classes
-from sickbeard.exceptions import ex
+try:
+    from sickbeard.exceptions import ex
+except ImportError:
+    from lib.exceptions_helper import ex
 
 try:
     locale.setlocale(locale.LC_ALL, '')

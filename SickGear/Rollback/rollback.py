@@ -7,8 +7,11 @@ import time
 
 import sickbeard
 from sickbeard import db, common, classes, logger
-# noinspection PyPep8Naming
-from sickbeard import encodingKludge as ek
+try:
+    from sickbeard import encodingKludge as ek
+except ImportError:
+    from lib import encodingKludge as ek
+
 try:
     from sickbeard.helpers import copy_file
 except ImportError:
