@@ -489,7 +489,7 @@ class FailedDb(DBRollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
-        self.log_load_msg('Downgrading history table', )
+        self.log_load_msg('Downgrading history table')
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
                                 ['CREATE TABLE history (date NUMERIC, size NUMERIC, `release` TEXT, provider TEXT, '
                                  'old_status NUMERIC, showid NUMERIC, season NUMERIC, episode NUMERIC)'],
@@ -514,7 +514,7 @@ class CacheDb(DBRollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
-        self.log_load_msg('Recreating provider_cache table', )
+        self.log_load_msg('Recreating provider_cache table')
         self.my_db.mass_action([['DROP TABLE provider_cache'],
                                 ['CREATE TABLE provider_cache (provider TEXT ,name TEXT, season NUMERIC, '
                                  'episodes TEXT, indexerid NUMERIC, url TEXT UNIQUE, time NUMERIC, quality TEXT, '
@@ -578,7 +578,7 @@ class MainDb(DBRollbackBase):
     def rollback_100000(self):
         ImageRollback().downgrade_old_naming()
 
-        self.log_load_msg('Downgrading tv_episodes table', )
+        self.log_load_msg('Downgrading tv_episodes table')
         self.remove_index('tv_episodes', 'idx_tv_episodes_unique')
         self.remove_index('tv_episodes', 'idx_tv_episodes_showid_airdate')
         # noinspection SqlResolve
@@ -603,7 +603,7 @@ class MainDb(DBRollbackBase):
         self.my_db.action('CREATE INDEX idx_tv_episodes_showid_airdate ON tv_episodes(showid,airdate)')
         self.my_db.action('CREATE INDEX idx_showid ON tv_episodes (showid)')
 
-        self.log_load_msg('Downgrading tv_shows table', )
+        self.log_load_msg('Downgrading tv_shows table')
         self.remove_index('tv_shows', 'idx_indexer_id')
         # noinspection SqlResolve
         self.my_db.mass_action([['CREATE TABLE backup_tv_shows (show_id INTEGER PRIMARY KEY, indexer_id NUMERIC, '
@@ -629,7 +629,7 @@ class MainDb(DBRollbackBase):
                                 ])
         self.my_db.action('CREATE UNIQUE INDEX idx_indexer_id ON tv_shows (indexer_id)')
 
-        self.log_load_msg('Downgrading imdb_info table', )
+        self.log_load_msg('Downgrading imdb_info table')
         self.remove_index('imdb_info', 'idx_id_indexer_imdb_info')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE imdb_info RENAME TO backup_imdb_info'],
@@ -644,7 +644,7 @@ class MainDb(DBRollbackBase):
                                  'FROM backup_imdb_info WHERE indexer IN (1,2)'],
                                 ['DELETE FROM backup_imdb_info WHERE indexer IN (1,2)']])
 
-        self.log_load_msg('Downgrading blacklist table', )
+        self.log_load_msg('Downgrading blacklist table')
         self.remove_index('blacklist', 'idx_id_indexer_blacklist')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE blacklist RENAME TO backup_blacklist'],
@@ -655,7 +655,7 @@ class MainDb(DBRollbackBase):
                                 ['DELETE FROM backup_blacklist WHERE indexer IN (1,2)']
                                 ])
 
-        self.log_load_msg('Downgrading whitelist table', )
+        self.log_load_msg('Downgrading whitelist table')
         self.remove_index('whitelist', 'idx_id_indexer_whitelist')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE whitelist RENAME TO backup_whitelist'],
@@ -666,7 +666,7 @@ class MainDb(DBRollbackBase):
                                 ['DELETE FROM backup_whitelist WHERE indexer IN (1,2)']
                                 ])
 
-        self.log_load_msg('Downgrading scene_exceptions table', )
+        self.log_load_msg('Downgrading scene_exceptions table')
         self.remove_index('scene_exceptions', 'idx_id_indexer_scene_exceptions')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE scene_exceptions RENAME TO backup_scene_exceptions'],
@@ -678,7 +678,7 @@ class MainDb(DBRollbackBase):
                                 ['DELETE FROM backup_scene_exceptions WHERE indexer IN (1,2)']
                                 ])
 
-        self.log_load_msg('Downgrading scene_numbering table', )
+        self.log_load_msg('Downgrading scene_numbering table')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE scene_numbering RENAME TO tmp_scene_numbering'],
                                 ['CREATE TABLE scene_numbering (indexer TEXT, indexer_id INTEGER, season INTEGER, '
@@ -693,7 +693,7 @@ class MainDb(DBRollbackBase):
                                 ['DROP TABLE tmp_scene_numbering']
                                 ])
 
-        self.log_load_msg('Downgrading history table', )
+        self.log_load_msg('Downgrading history table')
         self.remove_index('history', 'idx_id_indexer_history')
         # noinspection SqlResolve
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
