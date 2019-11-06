@@ -572,6 +572,7 @@ class MainDb(DBRollbackBase):
             100001: self.rollback_100001,
             100002: self.rollback_100001,
             100003: self.rollback_100003,
+            100004: self.rollback_100004,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -582,6 +583,23 @@ class MainDb(DBRollbackBase):
             20010: self.rollback_20010,
             20011: self.rollback_20011,
         }
+
+    def rollback_100004(self):
+        self.log_load_msg('Downgrading tv_shows table')
+        self.my_db.mass_action([
+             ['CREATE TABLE tv_shows_exclude_backup (show_id INTEGER PRIMARY KEY, indexer NUMERIC, '
+              'rls_global_exclude_ignore TEXT, rls_global_exclude_require TEXT)'],
+             ['REPLACE INTO tv_shows_exclude_backup (show_id, indexer, rls_global_exclude_ignore, '
+              'rls_global_exclude_require) SELECT show_id, indexer, rls_global_exclude_ignore, '
+              'rls_global_exclude_require FROM tv_shows WHERE tv_shows.rls_global_exclude_ignore <> "" '
+              'OR tv_shows.rls_global_exclude_require <> ""']
+            ])
+        self.remove_column('tv_shows', 'rls_global_exclude_ignore')
+        self.remove_column('tv_shows', 'rls_global_exclude_require')
+        if self.my_db.has_flag('ignore_require_cleaned'):
+            self.my_db.remove_flag('ignore_require_cleaned')
+
+        self.set_db_version(20011)
 
     def rollback_100003(self):
         self.remove_column('tv_shows', 'prune')
