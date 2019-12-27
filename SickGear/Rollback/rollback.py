@@ -485,10 +485,15 @@ class FailedDb(DBRollbackBase):
             # standalone test db rollbacks (db version >=100.000)
             100000: self.rollback_test_100000,
             # regular db rollbacks
+            2: self.rollback_2,
         }
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
+        if 2 <= self.rollback_version < 100000:
+            # special case: switch from test coreid to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(2)
         self.log_load_msg('Downgrading history table')
         self.my_db.mass_action([['ALTER TABLE history RENAME TO backup_history'],
                                 ['CREATE TABLE history (date NUMERIC, size NUMERIC, `release` TEXT, provider TEXT, '
@@ -500,6 +505,10 @@ class FailedDb(DBRollbackBase):
                                 ])
         self.set_db_version(1)
 
+    def rollback_2(self):
+        # same as 100000
+        self.rollback_test_100000()
+
 
 class CacheDb(DBRollbackBase):
     def __init__(self):
@@ -510,10 +519,15 @@ class CacheDb(DBRollbackBase):
             # regular db rollbacks
             3: self.rollback_3,
             4: self.rollback_4,
+            5: self.rollback_5,
         }
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
+        if 5 <= self.rollback_version < 100000:
+            # special case: switch from test coreid to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(5)
         self.log_load_msg('Recreating provider_cache table')
         self.my_db.mass_action([['DROP TABLE provider_cache'],
                                 ['CREATE TABLE provider_cache (provider TEXT ,name TEXT, season NUMERIC, '
@@ -523,6 +537,10 @@ class CacheDb(DBRollbackBase):
         self.set_db_version(4)  # set production db version
 
     # regular db rollbacks
+    def rollback_5(self):
+        # same as test 100000
+        self.rollback_test_100000()
+
     def rollback_4(self):
         self.remove_table('providererrors')
         self.remove_table('providererrorcount')
@@ -562,6 +580,7 @@ class MainDb(DBRollbackBase):
             20008: self.rollback_20008,
             20009: self.rollback_20009,
             20010: self.rollback_20010,
+            20011: self.rollback_20011,
         }
 
     def rollback_100003(self):
@@ -576,6 +595,10 @@ class MainDb(DBRollbackBase):
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_100000(self):
+        if 20011 <= self.rollback_version < 100000:
+            # special case: switch from test coreid to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(20011)
         ImageRollback().downgrade_old_naming()
 
         self.log_load_msg('Downgrading tv_episodes table')
@@ -706,6 +729,10 @@ class MainDb(DBRollbackBase):
                                 ])
 
         self.set_db_version(20010)
+
+    def rollback_20011(self):
+        # this is the same as test version 100000, so simply call that
+        self.rollback_100000()
 
     # regular db rollbacks
     def rollback_20010(self):

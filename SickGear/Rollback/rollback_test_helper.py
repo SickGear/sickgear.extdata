@@ -110,14 +110,14 @@ classes.loading_msg = test_load_msg()
 try:
     cm = rollback.ConfigFile()
     cm.run(19)
-    # rc = rollback.CacheDb()
-    # rc.load_msg = 'Test Cache'
-    # rc.run(4, raise_exception=True)
+    rc = rollback.CacheDb()
+    rc.load_msg = 'Test Cache'
+    rc.run(5, raise_exception=True)
     rm = rollback.MainDb()
     rm.load_msg = 'Test Main'
-    rm.run(20010, raise_exception=True)
-    # rf = rollback.FailedDb()
-    # rf.load_msg = 'Test Failed'
-    # rf.run(1, raise_exception=True)
+    rm.run(20011, raise_exception=True)
+    rf = rollback.FailedDb()
+    rf.load_msg = 'Test Failed'
+    rf.run(2, raise_exception=True)
 except (StandardError, Exception) as e:
     print(ex(e))
