@@ -22,7 +22,7 @@ except ImportError:
 PY2 = 2 == sys.version_info[0]
 
 if not PY2:
-    integer_types = (int, long)
+    integer_types = (int, )
 
     def list_filter(*args):
         return list(filter(*args))
@@ -31,7 +31,7 @@ if not PY2:
         return iter(d.items(**kw))
 else:
     # Python 2
-    integer_types = (int,)
+    integer_types = (int, long)
 
     def list_filter(*args):
         return filter(*args)
@@ -316,11 +316,11 @@ class ConfigFile(RollbackBase):
     def check_setting_int(config, cfg_name, item_name, def_val):
         try:
             my_val = int(config[cfg_name][item_name])
-        except(StandardError, Exception):
+        except(BaseException, Exception):
             my_val = def_val
             try:
                 config[cfg_name][item_name] = my_val
-            except(StandardError, Exception):
+            except(BaseException, Exception):
                 config[cfg_name] = {}
                 config[cfg_name][item_name] = my_val
         logger.log('%s -> %s' % (item_name, my_val), logger.DEBUG)
@@ -443,7 +443,8 @@ class DBRollbackBase(RollbackBase):
         self.my_db.action('VACUUM')
 
     def set_db_version(self, version):
-        self.my_db.mass_action([['UPDATE' + ' db_version SET db_version = ?', [version]], ['VACUUM']])
+        self.my_db.action('UPDATE' + ' db_version SET db_version = ?', [version])
+        self.my_db.action('VACUUM')
 
     def is_test_db(self):
         return 100000 <= self.my_db.checkDBVersion()
@@ -587,7 +588,7 @@ class MainDb(DBRollbackBase):
     def rollback_100004(self):
         self.log_load_msg('Downgrading tv_shows table')
         self.my_db.mass_action([
-             ['CREATE TABLE tv_shows_exclude_backup (show_id INTEGER PRIMARY KEY, indexer NUMERIC, '
+             ['CREATE TABLE IF NOT EXISTS tv_shows_exclude_backup (show_id INTEGER PRIMARY KEY, indexer NUMERIC, '
               'rls_global_exclude_ignore TEXT, rls_global_exclude_require TEXT)'],
              ['REPLACE INTO tv_shows_exclude_backup (show_id, indexer, rls_global_exclude_ignore, '
               'rls_global_exclude_require) SELECT show_id, indexer, rls_global_exclude_ignore, '
