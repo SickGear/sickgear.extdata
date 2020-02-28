@@ -583,9 +583,14 @@ class MainDb(DBRollbackBase):
             20009: self.rollback_20009,
             20010: self.rollback_20010,
             20011: self.rollback_20011,
+            20012: self.rollback_20012,
         }
 
     def rollback_100004(self):
+        if 20012 <= self.rollback_version < 100000:
+            # special case: switch from test exclude to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(20012)
         self.log_load_msg('Downgrading tv_shows table')
         self.my_db.mass_action([
              ['CREATE TABLE IF NOT EXISTS tv_shows_exclude_backup (show_id INTEGER PRIMARY KEY, indexer NUMERIC, '
@@ -748,6 +753,10 @@ class MainDb(DBRollbackBase):
                                 ])
 
         self.set_db_version(20010)
+
+    def rollback_20012(self):
+        # this is the same as test version 100004, so simply call that
+        self.rollback_100004()
 
     def rollback_20011(self):
         # this is the same as test version 100000, so simply call that
