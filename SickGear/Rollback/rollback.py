@@ -19,6 +19,10 @@ except ImportError:
     # noinspection PyPep8Naming
     from sickbeard.helpers import copyFile as copy_file
 
+# noinspection PyUnreachableCode
+if False:
+    from typing import AnyStr, List, Union
+
 PY2 = 2 == sys.version_info[0]
 
 if not PY2:
@@ -373,9 +377,11 @@ class DBRollbackBase(RollbackBase):
             self.my_db.action('DROP INDEX' + ' [%s]' % name)
 
     def remove_column(self, table, column):
+        # type: (AnyStr, Union[AnyStr, List[AnyStr]]) -> None
         # get old table columns and store the ones we want to keep
         result = self.my_db.select('pragma table_info([%s])' % table)
-        kept_columns = list_filter(lambda col: column != col['name'], result)
+        columns_list = ([column], column)[isinstance(column, list)]
+        kept_columns = list_filter(lambda col: col['name'] not in columns_list, result)
         # input sanitisation
         if not kept_columns:
             raise ValueError('No table columns found, is table name correct: %s' % table)
@@ -517,7 +523,8 @@ class CacheDb(DBRollbackBase):
         self.db_versions = {
             # standalone test db rollbacks (db version >=100.000)
             100000: self.rollback_test_100000,
-            100001: self.rollback_test_10001,
+            100001: self.rollback_test_100001,
+            100002: self.rollback_test_100002,
             # regular db rollbacks
             3: self.rollback_3,
             4: self.rollback_4,
@@ -525,7 +532,24 @@ class CacheDb(DBRollbackBase):
             6: self.rollback_6,
         }
 
-    def rollback_test_10001(self):
+    def rollback_test_100002(self):
+        if 7 <= self.rollback_version < 100000:
+            # special case: switch from test coreid to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(7)
+        self.log_load_msg('Removing tables: people_queue, search_queue')
+        self.remove_table('people_queue')
+        self.remove_index('people_queue', 'idx_people_queue')
+        self.remove_index('people_queue', 'idx_people_queue_uid')
+        self.remove_table('search_queue')
+        self.remove_index('search_queue', 'idx_search_queue')
+        self.remove_index('search_queue', 'idx_search_queue_uid')
+        self.remove_table('show_queue')
+        self.remove_index('show_queue', 'idx_show_queue')
+        self.remove_index('show_queue', 'idx_show_queue_uid')
+        self.set_db_version(6)
+
+    def rollback_test_100001(self):
         if 6 <= self.rollback_version < 100000:
             # special case: switch from test coreid to released production
             self.log_load_msg('Switching db version number')
@@ -593,6 +617,7 @@ class MainDb(DBRollbackBase):
             100005: self.rollback_100005,
             100006: self.rollback_100006,
             100007: self.rollback_100007,
+            100008: self.rollback_100008,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -606,6 +631,29 @@ class MainDb(DBRollbackBase):
             20013: self.rollback_20013,
             20014: self.rollback_20014,
         }
+
+    def rollback_100008(self):
+        self.log_load_msg('Downgrading tv_shows table')
+        self.remove_column('tv_shows', ['timezone', 'airtime', 'network_country', 'network_country_code', 
+                                        'network_id', 'network_is_stream', 'src_update_timestamp'])
+        self.log_load_msg('Downgrading tv_episodes table')
+        self.remove_column('tv_episodes', ['timezone', 'airtime', 'runtime', 'timestamp', 'network', 'network_country',
+                                           'network_country_code' , 'network_id', 'network_is_stream'])
+        self.log_load_msg('Downgrading characters and persons table')
+        cl = []
+        for t in ('castlist', 'characters', 'character_ids', 'persons', 'person_ids', 'character_person_map',
+                  'tv_src_switch'):
+            cl.append(['DROP INDEX IF EXISTS idx_%s' % t])
+            cl.append(['ALTER TABLE %s RENAME TO backup_%s' % (t, t)])
+        for t in ('castlist', 'character_ids', 'person_ids', 'character_person', 'tv_src_switch'):
+            cl.append(['DROP INDEX IF EXISTS idx_unique_%s' % t])
+        cl.extend([
+            ['DROP INDEX IF EXISTS idx_character_person_map_character'],
+            ['DROP INDEX IF EXISTS idx_character_person_map_person']
+        ])
+        if cl:
+            self.my_db.mass_action(cl)
+        self.set_db_version(20014)
 
     def rollback_100007(self):
         show_sql_result = self.my_db.select('SELECT indexer, indexer_id FROM tv_shows')
