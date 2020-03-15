@@ -517,11 +517,23 @@ class CacheDb(DBRollbackBase):
         self.db_versions = {
             # standalone test db rollbacks (db version >=100.000)
             100000: self.rollback_test_100000,
+            100001: self.rollback_test_10001,
             # regular db rollbacks
             3: self.rollback_3,
             4: self.rollback_4,
             5: self.rollback_5,
+            6: self.rollback_6,
         }
+
+    def rollback_test_10001(self):
+        if 6 <= self.rollback_version < 100000:
+            # special case: switch from test coreid to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(6)
+        self.log_load_msg('Removing tables: connection_fails, connection_fails_count')
+        self.remove_table('connection_fails')
+        self.remove_table('connection_fails_count')
+        self.set_db_version(5)
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
@@ -538,6 +550,10 @@ class CacheDb(DBRollbackBase):
         self.set_db_version(4)  # set production db version
 
     # regular db rollbacks
+    def rollback_6(self):
+        # same as test 100001
+        self.rollback_test_10001()
+
     def rollback_5(self):
         # same as test 100000
         self.rollback_test_100000()
