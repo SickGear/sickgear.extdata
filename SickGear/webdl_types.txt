@@ -21,6 +21,7 @@ Freeform::FREE
 FYI::FYI
 go90::go90
 Google Play::GP
+HBO Max::HMAX
 HGTV::HGTV
 History::HIST
 Investigation Discovery::ID
