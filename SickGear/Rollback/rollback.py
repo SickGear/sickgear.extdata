@@ -590,6 +590,7 @@ class MainDb(DBRollbackBase):
             100002: self.rollback_100001,
             100003: self.rollback_100003,
             100004: self.rollback_100004,
+            100005: self.rollback_100005,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -600,7 +601,25 @@ class MainDb(DBRollbackBase):
             20010: self.rollback_20010,
             20011: self.rollback_20011,
             20012: self.rollback_20012,
+            20013: self.rollback_20013,
         }
+
+    def rollback_100005(self):
+        if self.my_db.hasTable('blocklist'):
+            self.log_load_msg('Renaming allow/block list tables')
+
+            # simply renames two tables as they were
+            for old, new in (('block', 'black'), ('allow', 'white')):
+                # noinspection SqlResolve
+                self.my_db.mass_action([
+                    ['ALTER TABLE %slist RENAME TO tmp_%slist' % (old, new)],
+                    ['CREATE TABLE %slist (show_id INTEGER, range TEXT, keyword TEXT, indexer NUMERIC)' % new],
+                    ['INSERT INTO %slist(show_id, range, keyword, indexer)'
+                     ' SELECT show_id, range, keyword, indexer FROM tmp_%slist' % (new, new)],
+                    ['DROP TABLE tmp_%slist' % new]
+                ])
+
+            self.set_db_version(20012)
 
     def rollback_100004(self):
         if 20012 <= self.rollback_version < 100000:
@@ -769,6 +788,10 @@ class MainDb(DBRollbackBase):
                                 ])
 
         self.set_db_version(20010)
+
+    def rollback_20013(self):
+        # this is the same as test version 100005, so simply call that
+        self.rollback_100005()
 
     def rollback_20012(self):
         # this is the same as test version 100004, so simply call that
