@@ -3,9 +3,11 @@ AMBC::AMBC
 Apple+::ATVP
 AUBC::AUBC
 Bravo::BRAV
+BYU Television::BYU
 Cartoon Network::CN
 CBC::CBC
 CBS::CBS
+CMore::CMore?
 Comedy Central::CC
 Cooking Channel::COOK
 Crackle::CRKL
