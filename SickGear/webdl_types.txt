@@ -35,6 +35,7 @@ MTV::MTV
 NBC::NBC
 Nickelodeon::NICK
 NRK::NRK
+Peacock::PCOK
 PBS::PBS
 Spike::SPIK
 Stan::STAN
