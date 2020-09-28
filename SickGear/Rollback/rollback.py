@@ -603,9 +603,14 @@ class MainDb(DBRollbackBase):
             20011: self.rollback_20011,
             20012: self.rollback_20012,
             20013: self.rollback_20013,
+            20014: self.rollback_20014,
         }
 
     def rollback_100006(self):
+        if 20014 <= self.rollback_version < 100000:
+            # special case: switch from test hide to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(20014)
         if self.my_db.hasColumn('history', 'hide'):
             self.log_load_msg('Removing hide column from history table')
 
@@ -804,6 +809,10 @@ class MainDb(DBRollbackBase):
                                 ])
 
         self.set_db_version(20010)
+
+    def rollback_20014(self):
+        # this is the same as test version 100006, so simply call that
+        self.rollback_100006()
 
     def rollback_20013(self):
         # this is the same as test version 100005, so simply call that
