@@ -591,6 +591,7 @@ class MainDb(DBRollbackBase):
             100003: self.rollback_100003,
             100004: self.rollback_100004,
             100005: self.rollback_100005,
+            100006: self.rollback_100006,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -603,6 +604,21 @@ class MainDb(DBRollbackBase):
             20012: self.rollback_20012,
             20013: self.rollback_20013,
         }
+
+    def rollback_100006(self):
+        if self.my_db.hasColumn('history', 'hide'):
+            self.log_load_msg('Removing hide column from history table')
+
+            self.my_db.mass_action([
+                ['CREATE TABLE IF NOT EXISTS history_hide_backup (action NUMERIC, date NUMERIC, showid NUMERIC,'
+                 ' season NUMERIC, episode NUMERIC, quality NUMERIC, resource TEXT, provider TEXT, version NUMERIC,'
+                 ' indexer NUMERIC, hide NUMERIC)'],
+                ['REPLACE INTO history_hide_backup (action, date, showid, season, episode, quality, resource,'
+                 ' provider, version, indexer, hide) SELECT action, date, showid, season, episode, quality, resource,'
+                 ' provider, version, indexer, hide FROM history']
+            ])
+            self.remove_column('history', 'hide')
+        self.set_db_version(20013)
 
     def rollback_100005(self):
         if self.my_db.hasTable('blocklist'):
