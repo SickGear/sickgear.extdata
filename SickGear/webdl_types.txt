@@ -3,6 +3,7 @@ AMBC::AMBC
 Apple+::ATVP
 AUBC::AUBC
 Bravo::BRAV
+BritBox::BB|BRTB
 BYU Television::BYU
 Cartoon Network::CN
 CBC::CBC
