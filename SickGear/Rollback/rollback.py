@@ -617,7 +617,7 @@ class MainDb(DBRollbackBase):
             self.my_db.mass_action([
                 ['CREATE TABLE IF NOT EXISTS history_hide_backup (action NUMERIC, date NUMERIC, showid NUMERIC,'
                  ' season NUMERIC, episode NUMERIC, quality NUMERIC, resource TEXT, provider TEXT, version NUMERIC,'
-                 ' indexer NUMERIC, hide NUMERIC)'],
+                 ' indexer NUMERIC, hide NUMERIC DEFAULT "0")'],
                 ['REPLACE INTO history_hide_backup (action, date, showid, season, episode, quality, resource,'
                  ' provider, version, indexer, hide) SELECT action, date, showid, season, episode, quality, resource,'
                  ' provider, version, indexer, hide FROM history']
