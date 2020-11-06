@@ -42,6 +42,7 @@ Spike::SPIK
 Stan::STAN
 SyFy::SYFY
 TLC::TLC
+Tubi::TUBI
 UKTV::UKTV
 Viceland::VICE
 VRV::VRV
