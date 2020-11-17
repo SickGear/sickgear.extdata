@@ -592,6 +592,7 @@ class MainDb(DBRollbackBase):
             100004: self.rollback_100004,
             100005: self.rollback_100005,
             100006: self.rollback_100006,
+            100007: self.rollback_100007,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -605,6 +606,62 @@ class MainDb(DBRollbackBase):
             20013: self.rollback_20013,
             20014: self.rollback_20014,
         }
+
+    def rollback_100007(self):
+        show_sql_result = self.my_db.select('SELECT indexer, indexer_id FROM tv_shows')
+        show_count = len(show_sql_result)
+        percent = int(show_count / 100)  # only update ui every 1 % progress
+        msg = 'Change scene numbering: %s/%s Shows'
+        self.log_load_msg(msg % (0, show_count))
+
+        cl = []
+        for i, s in enumerate(show_sql_result):
+            if 0 == i % percent:
+                self.log_load_msg(msg % (i, show_count))
+            indexer = s['indexer']
+            indexer_id = s['indexer_id']
+
+            sql_result = [s for s in
+                          self.my_db.select('SELECT absolute_number, episode, season, scene_episode, '
+                                            'scene_season, scene_absolute_number FROM tv_episodes '
+                                            'WHERE indexer = ? AND showid = ?',
+                                            [indexer, indexer_id])
+                          if any(s[col] not in ('NULL', 0, -1, None)
+                                 for col in ['scene_episode', 'scene_season', 'scene_absolute_number'])]
+
+            scene_sql_result = self.my_db.select('SELECT * FROM scene_numbering WHERE indexer = ? AND indexer_id = ?',
+                                                 [indexer, indexer_id])
+
+            cl.extend([['DELETE FROM scene_numbering WHERE indexer = ? AND indexer_id = ?', [indexer, indexer_id]],
+                      ['UPDATE tv_episodes SET scene_season = NULL, scene_episode = NULL, scene_absolute_number = NULL'
+                       ' WHERE indexer = ? AND showid = ?', [indexer, indexer_id]]
+                       ])
+
+            # move user scene numbers to scene_numbering
+            for ep in sql_result:
+                ab = ep['absolute_number']
+                ab = (ab, None)[0 == ab]
+                cl.append(['REPLACE INTO scene_numbering '
+                           '(indexer, indexer_id, episode, season, absolute_number, '
+                           'scene_episode, scene_season, scene_absolute_number) '
+                           'VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                           [indexer, indexer_id, ep['episode'], ep['season'], ab,
+                            ep['scene_episode'], ep['scene_season'], ep['scene_absolute_number']]])
+
+            # copy external set scene numbers to tv_episodes
+            for ep in scene_sql_result:
+                s_ab = ep['scene_absolute_number']
+                s_ab = (s_ab, None)[0 == s_ab]
+                cl.append(['UPDATE tv_episodes SET scene_episode = ?, scene_season = ?, scene_absolute_number = ? '
+                           'WHERE indexer = ? AND showid = ? AND season = ? AND episode = ?',
+                           [ep['scene_episode'], ep['scene_season'], s_ab,
+                            indexer, indexer_id, ep['season'], ep['episode']]])
+
+        self.log_load_msg(msg % (show_count, show_count))
+        if cl:
+            self.my_db.mass_action(cl)
+
+        self.set_db_version(20014)
 
     def rollback_100006(self):
         if 20014 <= self.rollback_version < 100000:
