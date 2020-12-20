@@ -615,18 +615,18 @@ class MainDb(DBRollbackBase):
         self.log_load_msg(msg % (0, show_count))
 
         cl = []
-        for i, s in enumerate(show_sql_result):
-            if 0 == i % percent:
-                self.log_load_msg(msg % (i, show_count))
-            indexer = s['indexer']
-            indexer_id = s['indexer_id']
+        for cur_i, cur_show in enumerate(show_sql_result):
+            if 0 == cur_i % percent:
+                self.log_load_msg(msg % (cur_i, show_count))
+            indexer = cur_show['indexer']
+            indexer_id = cur_show['indexer_id']
 
-            sql_result = [s for s in
+            sql_result = [_ep for _ep in
                           self.my_db.select('SELECT absolute_number, episode, season, scene_episode, '
                                             'scene_season, scene_absolute_number FROM tv_episodes '
                                             'WHERE indexer = ? AND showid = ?',
                                             [indexer, indexer_id])
-                          if any(s[col] not in ('NULL', 0, -1, None)
+                          if any(_ep[col] not in ('NULL', 0, -1, None)
                                  for col in ['scene_episode', 'scene_season', 'scene_absolute_number'])]
 
             scene_sql_result = self.my_db.select('SELECT * FROM scene_numbering WHERE indexer = ? AND indexer_id = ?',
