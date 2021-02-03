@@ -46,5 +46,6 @@ Tubi::TUBI
 UKTV::UKTV
 Viceland::VICE
 VRV::VRV
+Vudu::VUDU
 WOWPlus::WOWPlus
 Youtube Red::RED
