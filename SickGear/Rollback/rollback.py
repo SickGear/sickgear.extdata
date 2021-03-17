@@ -642,10 +642,11 @@ class MainDb(DBRollbackBase):
         self.log_load_msg('Downgrading characters and persons table')
         cl = []
         for t in ('castlist', 'characters', 'character_ids', 'persons', 'person_ids', 'character_person_map',
-                  'tv_src_switch', 'switch_ep_result'):
+                  'tv_src_switch', 'switch_ep_result', 'character_person_years'):
             cl.append(['DROP INDEX IF EXISTS idx_%s' % t])
             cl.append(['ALTER TABLE %s RENAME TO backup_%s' % (t, t)])
-        for t in ('castlist', 'character_ids', 'person_ids', 'character_person', 'tv_src_switch', 'switch_ep_result'):
+        for t in ('castlist', 'character_ids', 'person_ids', 'character_person', 'tv_src_switch', 'switch_ep_result',
+                  'character_person_years'):
             cl.append(['DROP INDEX IF EXISTS idx_unique_%s' % t])
         cl.extend([
             ['DROP INDEX IF EXISTS idx_character_person_map_character'],
