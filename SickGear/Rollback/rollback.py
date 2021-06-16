@@ -530,6 +530,7 @@ class CacheDb(DBRollbackBase):
             4: self.rollback_4,
             5: self.rollback_5,
             6: self.rollback_6,
+            7: self.rollback_7,
         }
 
     def rollback_test_100002(self):
@@ -574,6 +575,10 @@ class CacheDb(DBRollbackBase):
         self.set_db_version(4)  # set production db version
 
     # regular db rollbacks
+    def rollback_7(self):
+        # same as test 100002
+        self.rollback_test_100002()
+
     def rollback_6(self):
         # same as test 100001
         self.rollback_test_100001()
@@ -630,9 +635,14 @@ class MainDb(DBRollbackBase):
             20012: self.rollback_20012,
             20013: self.rollback_20013,
             20014: self.rollback_20014,
+            20015: self.rollback_20015,
         }
 
     def rollback_100008(self):
+        if 20015 <= self.rollback_version < 100000:
+            # special case: switch from test to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(20015)
         self.log_load_msg('Downgrading tv_shows table')
         self.remove_column('tv_shows', ['timezone', 'airtime', 'network_country', 'network_country_code', 
                                         'network_id', 'network_is_stream', 'src_update_timestamp'])
@@ -916,6 +926,10 @@ class MainDb(DBRollbackBase):
                                 ])
 
         self.set_db_version(20010)
+
+    def rollback_20015(self):
+        # this is the same as test version 100008, so simply call that
+        self.rollback_100008()
 
     def rollback_20014(self):
         # this is the same as test version 100006, so simply call that
