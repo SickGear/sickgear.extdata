@@ -22,6 +22,7 @@ except ImportError:
 # noinspection PyUnreachableCode
 if False:
     from typing import AnyStr, List, Union
+    from _23 import DirEntry
 
 PY2 = 2 == sys.version_info[0]
 
@@ -455,6 +456,16 @@ class DBRollbackBase(RollbackBase):
     def is_test_db(self):
         return 100000 <= self.my_db.checkDBVersion()
 
+    @staticmethod
+    def get_person_dir():
+        # type: (...) -> AnyStr
+        return ek.ek(os.path.join, sickbeard.CACHE_DIR, 'images', 'person')
+
+    @staticmethod
+    def get_characters_dir():
+        # type: (...) -> AnyStr
+        return ek.ek(os.path.join, sickbeard.CACHE_DIR, 'images', 'characters')
+
     def run(self, rollback_version, raise_exception=False):
         self.rollback_version = rollback_version
         self.make_backup()
@@ -623,6 +634,7 @@ class MainDb(DBRollbackBase):
             100006: self.rollback_100006,
             100007: self.rollback_100007,
             100008: self.rollback_100008,
+            100009: self.rollback_100009,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -636,7 +648,111 @@ class MainDb(DBRollbackBase):
             20013: self.rollback_20013,
             20014: self.rollback_20014,
             20015: self.rollback_20015,
+            # 20016: self.rollback_20016,
         }
+
+    def rollback_100009(self):
+        # if 20016 <= self.rollback_version < 100000:
+        #     # special case: switch from test to released production
+        #     self.log_load_msg('Switching db version number')
+        #     return self.set_db_version(20016)
+        import re
+        from lib.scandir.scandir import scandir
+        try:
+            from sickbeard.helpers import move_file
+        except ImportError:
+            # noinspection PyPep8Naming
+            from sickbeard.helpers import moveFile as move_file
+        new_tmdb_id, old_tmdb_id = 4, 102
+        cache_img_src = {'tmdb': 4, 'tvdb': 1, 'tvmaze': 3, 'imdb': 100}
+        self.log_load_msg('Renaming Images back')
+        for _dir in (self.get_person_dir(), self.get_characters_dir()):
+            for _f in ek.ek(scandir, _dir):  # type: DirEntry
+                if not _f.is_file(follow_symlinks=False):
+                    continue
+                try:
+                    img_src = re.search(r'^([A-Za-z]+)-', _f.name).group(1)
+                except (BaseException, Exception):
+                    continue
+                if img_src not in cache_img_src:
+                    continue
+                try:
+                    move_file(_f.path, ek.ek(os.path.join, ek.ek(os.path.dirname, _f.path),
+                                             re.sub('^%s-' % img_src, '%s-' % cache_img_src[img_src], _f.name)))
+                except (BaseException, Exception):
+                    pass
+
+        self.log_load_msg('Changing Tmdb ids back')
+        self.my_db.mass_action([
+            ['UPDATE person_ids SET src = ? WHERE src = ?', [old_tmdb_id, new_tmdb_id]],
+            ['UPDATE character_ids SET src = ? WHERE src = ?', [old_tmdb_id, new_tmdb_id]],
+            ['CREATE TABLE IF NOT EXISTS backup_tmdb_tv_shows'
+             '( show_id INTEGER primary key, indexer_id NUMERIC, indexer NUMERIC, show_name TEXT, location TEXT,'
+             ' network TEXT, genre TEXT, classification TEXT, runtime NUMERIC, quality NUMERIC, airs TEXT,'
+             ' status TEXT, flatten_folders NUMERIC, paused NUMERIC, startyear NUMERIC, air_by_date NUMERIC,'
+             ' lang TEXT, subtitles NUMERIC, notify_list TEXT, imdb_id TEXT, last_update_indexer NUMERIC,'
+             ' dvdorder NUMERIC, archive_firstmatch NUMERIC, rls_require_words TEXT, rls_ignore_words TEXT,'
+             ' sports NUMERIC, anime NUMERIC, scene NUMERIC, overview TEXT, tag TEXT, prune INT,'
+             ' rls_global_exclude_ignore TEXT, rls_global_exclude_require TEXT, timezone TEXT default "",'
+             ' airtime NUMERIC, network_country TEXT default "", network_country_code TEXT default "",'
+             ' network_id NUMERIC, network_is_stream INTEGER, src_update_timestamp INTEGER );'],
+            ['REPLACE INTO backup_tmdb_tv_shows '
+             '(show_id, indexer_id, indexer, show_name, location, network, genre, classification, runtime, quality,'
+             ' airs, status, flatten_folders, paused, startyear, air_by_date, lang, subtitles, notify_list, imdb_id,'
+             ' last_update_indexer, dvdorder, archive_firstmatch, rls_require_words, rls_ignore_words, sports, anime,'
+             ' scene, overview, tag, prune, rls_global_exclude_ignore, rls_global_exclude_require, timezone, airtime,'
+             ' network_country, network_country_code, network_id, network_is_stream, src_update_timestamp)'
+             ' SELECT show_id, indexer_id, indexer, show_name, location, network, genre, classification, runtime,'
+             ' quality, airs, status, flatten_folders, paused, startyear, air_by_date, lang, subtitles, notify_list,'
+             ' imdb_id, last_update_indexer, dvdorder, archive_firstmatch, rls_require_words, rls_ignore_words,'
+             ' sports, anime, scene, overview, tag, prune, rls_global_exclude_ignore, rls_global_exclude_require,'
+             ' timezone, airtime, network_country, network_country_code, network_id, network_is_stream,'
+             ' src_update_timestamp FROM tv_shows WHERE indexer = ?', [new_tmdb_id]],
+            ['DELETE FROM tv_shows WHERE indexer = ?', [new_tmdb_id]],
+            ['CREATE TABLE IF NOT EXISTS backup_tmdb_tv_episodes'
+             '( episode_id INTEGER primary key, showid NUMERIC, indexerid NUMERIC, indexer NUMERIC, name TEXT,'
+             ' season NUMERIC, episode NUMERIC, description TEXT, airdate NUMERIC, hasnfo NUMERIC, hastbn NUMERIC,'
+             ' status NUMERIC, location TEXT, file_size NUMERIC, release_name TEXT, subtitles TEXT,'
+             ' subtitles_searchcount NUMERIC, subtitles_lastsearch TIMESTAMP, is_proper NUMERIC,'
+             ' scene_season NUMERIC, scene_episode NUMERIC, absolute_number NUMERIC, scene_absolute_number NUMERIC,'
+             ' release_group TEXT, version NUMERIC, timezone TEXT default "", airtime NUMERIC,'
+             ' runtime NUMERIC default 0, timestamp NUMERIC, network TEXT default "", network_country TEXT default "",'
+             ' network_country_code TEXT default "", network_id NUMERIC, network_is_stream INTEGER );'],
+            ['REPLACE INTO backup_tmdb_tv_episodes '
+             '(episode_id, showid, indexerid, indexer, name, season, episode, description, airdate, hasnfo, hastbn,'
+             ' status, location, file_size, release_name, subtitles, subtitles_searchcount, subtitles_lastsearch,'
+             ' is_proper, scene_season, scene_episode, absolute_number, scene_absolute_number, release_group, version,'
+             ' timezone, airtime, runtime, timestamp, network, network_country, network_country_code, network_id,'
+             ' network_is_stream)'
+             ' SELECT episode_id, showid, indexerid, indexer, name, season, episode, description, airdate, hasnfo,'
+             ' hastbn, status, location, file_size, release_name, subtitles, subtitles_searchcount,'
+             ' subtitles_lastsearch, is_proper, scene_season, scene_episode, absolute_number, scene_absolute_number,'
+             ' release_group, version, timezone, airtime, runtime, timestamp, network, network_country,'
+             ' network_country_code, network_id, network_is_stream FROM tv_episodes WHERE indexer = ?', [new_tmdb_id]],
+            ['DELETE FROM tv_episodes WHERE indexer = ?', [new_tmdb_id]],
+            ['CREATE TABLE IF NOT EXISTS backup_tmdb_indexer_mapping'
+             '( indexer_id INTEGER, indexer NUMERIC, mindexer_id INTEGER not null, mindexer NUMERIC,'
+             ' date NUMERIC default 0 not null, status INTEGER default 0 not null,'
+             ' primary key (indexer_id, indexer, mindexer) );'],
+            ['REPLACE INTO backup_tmdb_indexer_mapping (indexer_id, indexer, mindexer_id, mindexer, date, status)'
+             ' SELECT indexer_id, indexer, mindexer_id, mindexer, date, status FROM indexer_mapping WHERE indexer = ?',
+             [new_tmdb_id]],
+            ['DELETE FROM indexer_mapping WHERE indexer = ?', [new_tmdb_id]],
+            ['UPDATE indexer_mapping SET indexer = ? WHERE indexer = ?', [old_tmdb_id, new_tmdb_id]],
+            ['UPDATE indexer_mapping SET mindexer = ? WHERE mindexer = ?', [old_tmdb_id, new_tmdb_id]],
+        ])
+        # Use try block, since orphaned_cast_sql doesn't exists in all old versions
+        try:
+            from sickbeard.tv import TVShow
+            self.log_load_msg('Remove orphaned cast')
+            self.my_db.mass_action([['DELETE FROM castlist WHERE indexer = ?', [new_tmdb_id]],
+                                    ['DELETE FROM castlist WHERE castlist.id IN (SELECT c.id FROM castlist c'
+                                     ' LEFT JOIN tv_shows ON tv_shows.indexer = c.indexer'
+                                     ' AND tv_shows.indexer_id = c.indexer_id'
+                                     ' WHERE tv_shows.indexer_id is NULL);']] + TVShow.orphaned_cast_sql())
+        except (BaseException, Exception):
+            pass
+        self.set_db_version(20015)
 
     def rollback_100008(self):
         if 20015 <= self.rollback_version < 100000:
@@ -926,6 +1042,10 @@ class MainDb(DBRollbackBase):
                                 ])
 
         self.set_db_version(20010)
+
+    # def rollback_20016(self):
+    #     # this is the same as test version 100009, so simply call that
+    #     self.rollback_100009()
 
     def rollback_20015(self):
         # this is the same as test version 100008, so simply call that

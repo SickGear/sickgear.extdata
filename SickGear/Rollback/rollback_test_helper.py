@@ -112,7 +112,7 @@ try:
     #cm.run(19)
     rc = rollback.CacheDb()
     rc.load_msg = 'Test Cache'
-    rc.run(7, raise_exception=True)
+    # rc.run(7, raise_exception=True)
     rm = rollback.MainDb()
     rm.load_msg = 'Test Main'
     rm.run(20015, raise_exception=True)
