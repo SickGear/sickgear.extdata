@@ -648,14 +648,14 @@ class MainDb(DBRollbackBase):
             20013: self.rollback_20013,
             20014: self.rollback_20014,
             20015: self.rollback_20015,
-            # 20016: self.rollback_20016,
+            20016: self.rollback_20016,
         }
 
     def rollback_100009(self):
-        # if 20016 <= self.rollback_version < 100000:
-        #     # special case: switch from test to released production
-        #     self.log_load_msg('Switching db version number')
-        #     return self.set_db_version(20016)
+        if 20016 <= self.rollback_version < 100000:
+            # special case: switch from test to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(20016)
         import re
         from lib.scandir.scandir import scandir
         try:
@@ -1043,9 +1043,9 @@ class MainDb(DBRollbackBase):
 
         self.set_db_version(20010)
 
-    # def rollback_20016(self):
-    #     # this is the same as test version 100009, so simply call that
-    #     self.rollback_100009()
+    def rollback_20016(self):
+        # this is the same as test version 100009, so simply call that
+        self.rollback_100009()
 
     def rollback_20015(self):
         # this is the same as test version 100008, so simply call that

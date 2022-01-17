@@ -115,7 +115,7 @@ try:
     # rc.run(7, raise_exception=True)
     rm = rollback.MainDb()
     rm.load_msg = 'Test Main'
-    rm.run(20015, raise_exception=True)
+    rm.run(20016, raise_exception=True)
     rf = rollback.FailedDb()
     rf.load_msg = 'Test Failed'
     #rf.run(2, raise_exception=True)
