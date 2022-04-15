@@ -38,6 +38,7 @@ Nickelodeon::NICK
 NRK::NRK
 Peacock::PCOK
 PBS::PBS
+ROKU::ROKU
 Spike::SPIK
 Stan::STAN
 SyFy::SYFY
