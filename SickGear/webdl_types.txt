@@ -36,6 +36,7 @@ MTV::MTV
 NBC::NBC
 Nickelodeon::NICK
 NRK::NRK
+Paramount Plus::PMTP
 Peacock::PCOK
 PBS::PBS
 ROKU::ROKU
