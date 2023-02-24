@@ -370,11 +370,11 @@ class DBRollbackBase(RollbackBase):
         super(DBRollbackBase, self).log_load_msg(msg, default_msg='Downgrading %s to production version' % self.db_name)
 
     def remove_table(self, name):
-        if self.my_db.hasTable(name):
+        if self.my_db.has_table(name):
             self.my_db.action('DROP TABLE' + ' [%s]' % name)
 
     def remove_index(self, table, name):
-        if self.my_db.hasIndex(table, name):
+        if self.my_db.has_index(table, name):
             self.my_db.action('DROP INDEX' + ' [%s]' % name)
 
     def remove_column(self, table, column):
@@ -454,7 +454,7 @@ class DBRollbackBase(RollbackBase):
         self.my_db.action('VACUUM')
 
     def is_test_db(self):
-        return 100000 <= self.my_db.checkDBVersion()
+        return 100000 <= self.my_db.check_db_version()
 
     @staticmethod
     def get_person_dir():
@@ -470,7 +470,7 @@ class DBRollbackBase(RollbackBase):
         self.rollback_version = rollback_version
         self.make_backup()
         try:
-            c_version = self.my_db.checkDBVersion()
+            c_version = self.my_db.check_db_version()
             base_db_is_test = self.is_test_db()
             if isinstance(rollback_version, integer_types):
                 if (rollback_version < c_version or base_db_is_test) and c_version in self.db_versions:
@@ -478,7 +478,7 @@ class DBRollbackBase(RollbackBase):
                         if c_version not in self.db_versions:
                             break
                         self.db_versions[c_version]()
-                        c_version = self.my_db.checkDBVersion()
+                        c_version = self.my_db.check_db_version()
                         if rollback_version >= c_version or base_db_is_test:
                             break
                 if base_db_is_test:
@@ -607,11 +607,11 @@ class CacheDb(DBRollbackBase):
         self.set_db_version(3)
 
     def rollback_3(self):
-        if not self.my_db.hasTable('scene_exceptions'):
+        if not self.my_db.has_table('scene_exceptions'):
             self.my_db.action('CREATE TABLE scene_exceptions (exception_id INTEGER PRIMARY KEY, '
                               + 'indexer_id INTEGER KEY, show_name TEXT, season NUMERIC, custom NUMERIC)')
 
-        if not self.my_db.hasTable('scene_exceptions_refresh'):
+        if not self.my_db.has_table('scene_exceptions_refresh'):
             self.my_db.action('CREATE TABLE scene_exceptions_refresh (list TEXT PRIMARY KEY, '
                               + 'last_refreshed INTEGER)')
 
@@ -844,7 +844,7 @@ class MainDb(DBRollbackBase):
             # special case: switch from test hide to released production
             self.log_load_msg('Switching db version number')
             return self.set_db_version(20014)
-        if self.my_db.hasColumn('history', 'hide'):
+        if self.my_db.has_column('history', 'hide'):
             self.log_load_msg('Removing hide column from history table')
 
             self.my_db.mass_action([
@@ -859,7 +859,7 @@ class MainDb(DBRollbackBase):
         self.set_db_version(20013)
 
     def rollback_100005(self):
-        if self.my_db.hasTable('blocklist'):
+        if self.my_db.has_table('blocklist'):
             self.log_load_msg('Renaming allow/block list tables')
 
             # simply renames two tables as they were
@@ -1109,7 +1109,7 @@ class MainDb(DBRollbackBase):
         self.set_db_version(20004)
 
     def rollback_20004(self):
-        if self.my_db.hasTable('indexer_mapping'):
+        if self.my_db.has_table('indexer_mapping'):
             self.my_db.mass_action([
                 ['ALTER TABLE'
                  + ' indexer_mapping RENAME TO tmp_indexer_mapping'],
@@ -1124,7 +1124,7 @@ class MainDb(DBRollbackBase):
                  + ' tmp_indexer_mapping']
             ])
 
-        if self.my_db.hasColumn('info', 'last_run_backlog'):
+        if self.my_db.has_column('info', 'last_run_backlog'):
             self.my_db.mass_action([
                 ['ALTER TABLE'
                  + ' info RENAME TO tmp_info'],
@@ -1137,11 +1137,11 @@ class MainDb(DBRollbackBase):
             ])
 
         my_cache_db = db.DBConnection('cache.db')
-        if 0 == my_cache_db.checkDBVersion():
+        if 0 == my_cache_db.check_db_version():
             from sickgear.databases import cache_db
-            db.upgradeDatabase(my_cache_db, cache_db.InitialSchema)
+            db.upgrade_database(my_cache_db, cache_db.InitialSchema)
 
-        if self.my_db.hasTable('scene_exceptions'):
+        if self.my_db.has_table('scene_exceptions'):
             sql_result = self.my_db.action('SELECT *' + ' FROM scene_exceptions')
             cs = []
             for cur_result in sql_result:
