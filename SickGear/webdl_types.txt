@@ -17,16 +17,18 @@ CW::CWS?
 DC Universe::DCU
 DirecTV::DTV
 Discovery Channel::DISC
+Discovery Plus::DSCP
 Disney::DSNY
 Disney+::DSNP
 Facebook Watch::FBWatch
 Freeform::FREE
 FYI::FYI
 go90::go90
-Google Play::GP
+Google Play::(GP|GPLAY)
 HBO Max::HMAX
 HGTV::HGTV
 History::HIST
+Hungama Play::HPLAY
 Investigation Discovery::ID
 iPlayer::iP
 ITV Hub::iT
@@ -37,14 +39,19 @@ NBC::NBC
 Nickelodeon::NICK
 NRK::NRK
 Paramount Plus::PMTP
-Peacock::PCOK
 PBS::PBS
+Peacock::PCOK
 ROKU::ROKU
+Showtime::SHO
+SkyShowtime::SKST
 Spike::SPIK
 Stan::STAN
+Starz::STZ
 SyFy::SYFY
+TBS::TBS
 TLC::TLC
 Tubi::TUBI
+TVNZ::TVNZ
 UKTV::UKTV
 Viceland::VICE
 VRV::VRV
