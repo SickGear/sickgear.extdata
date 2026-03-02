@@ -624,6 +624,7 @@ class MainDb(DBRollbackBase):
             100007: self.rollback_100007,
             100008: self.rollback_100008,
             100009: self.rollback_100009,
+            100010: self.rollback_100010,
             # regular db's
             20004: self.rollback_20004,
             20005: self.rollback_20005,
@@ -638,7 +639,24 @@ class MainDb(DBRollbackBase):
             20014: self.rollback_20014,
             20015: self.rollback_20015,
             20016: self.rollback_20016,
+            20017: self.rollback_20017,
         }
+
+    def rollback_100010(self):
+        if 20017 <= self.rollback_version < 100000:
+            # special case: switch from test to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(20017)
+        self.log_load_msg('Remove table profile_sizes, size_profile_settings')
+        self.remove_table('profiles_sizes')
+        self.remove_table('size_profile_settings')
+        self.log_load_msg('Remove column size_profile form tv_shows')
+        self.remove_column('tv_shows', 'size_profiles')
+        self.log_load_msg('Remove column puid, client, client_uid from history')
+        self.remove_column('history', ['puid', 'client', 'client_uid'])
+        self.log_load_msg('Remove column video_codec form tv_episodes')
+        self.remove_column('tv_episodes', 'video_codec')
+        self.set_db_version(20016)
 
     def rollback_100009(self):
         if 20016 <= self.rollback_version < 100000:
@@ -1031,6 +1049,10 @@ class MainDb(DBRollbackBase):
                                 ])
 
         self.set_db_version(20010)
+
+    def rollback_20017(self):
+        # this is the same as test version 100010, so simply call that
+        self.rollback_100010()
 
     def rollback_20016(self):
         # this is the same as test version 100009, so simply call that
