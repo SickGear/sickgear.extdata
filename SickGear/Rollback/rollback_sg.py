@@ -4,7 +4,7 @@ import os
 import stat
 import time
 
-# import sickgear
+import sickgear
 from sickgear import common, classes, db, logger
 from sickgear.helpers import copy_file
 
@@ -26,7 +26,7 @@ def iteritems(d, **kw):
 class ImageRollback(object):
     def __init__(self):
         self.support_load_msg = hasattr(classes, 'LoadingMessage')
-        import sickgear
+        # import sickgear
         import ast
         import copy
         from sickgear.config import check_setting_str
@@ -91,7 +91,7 @@ class ImageRollback(object):
         except ImportError:
             from sickgear.indexers.indexer_config import TVINFO_TVDB, TVINFO_TVRAGE
 
-        import sickgear
+        # import sickgear
 
         if self.fanart_ratings:
             ne = {}
