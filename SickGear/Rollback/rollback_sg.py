@@ -474,9 +474,22 @@ class FailedDb(DBRollbackBase):
         self.db_versions = {
             # standalone test db rollbacks (db version >=100.000)
             100000: self.rollback_test_100000,
+            100001: self.rollback_test_100001,
             # regular db rollbacks
             2: self.rollback_2,
+            3: self.rollback_3,
         }
+
+    # standalone test db rollbacks (always rollback to a production db)
+    def rollback_test_100001(self):
+        if 3 <= self.rollback_version < 100000:
+            # special case: switch from test coreid to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(3)
+        self.log_load_msg('Remove puid, client, client_uid')
+        self.remove_column('history', ['puid', 'client', 'client_uid'])
+        self.remove_column('failed', ['puid', 'client', 'client_uid'])
+        self.set_db_version(2)
 
     # standalone test db rollbacks (always rollback to a production db)
     def rollback_test_100000(self):
@@ -494,6 +507,10 @@ class FailedDb(DBRollbackBase):
                                 ['DELETE FROM backup_history WHERE indexer IN (0,1,2)'],
                                 ])
         self.set_db_version(1)
+
+    def rollback_3(self):
+        # same as 100001
+        self.rollback_test_100001()
 
     def rollback_2(self):
         # same as 100000
