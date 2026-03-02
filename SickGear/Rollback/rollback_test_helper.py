@@ -3,15 +3,16 @@ from __future__ import print_function
 import locale
 import os
 import sys
+import traceback
 
-import rollback
+import rollback_sg
 
 sys.path.insert(1, '../../../SickGear')
 
-import sickbeard
-from sickbeard import logger, classes
+import sickgear
+from sickgear import logger, classes
 try:
-    from sickbeard.exceptions import ex
+    from sickgear.exceptions import ex
 except ImportError:
     from lib.exceptions_helper import ex
 
@@ -20,20 +21,20 @@ try:
 except (locale.Error, IOError):
     pass
 try:
-    sickbeard.SYS_ENCODING = locale.getpreferredencoding()
+    sickgear.SYS_ENCODING = locale.getpreferredencoding()
 except (locale.Error, IOError):
     pass
 
 from lib.configobj import ConfigObj
 
-sickbeard.DATA_DIR = os.environ.get('SickGearData') or os.path.realpath(r'..\..\..\SickGear')
-sickbeard.CACHE_DIR = os.environ.get('SickGearCache') or os.path.realpath(r'..\..\..\SickGear\cache')
-sickbeard.CONFIG_FILE = os.path.join(sickbeard.DATA_DIR, 'config.ini')
-sickbeard.CFG = ConfigObj(sickbeard.CONFIG_FILE)
+sickgear.DATA_DIR = os.environ.get('SickGearData') or os.path.realpath(r'..\..\..\SickGear')
+sickgear.CACHE_DIR = os.environ.get('SickGearCache') or os.path.realpath(r'..\..\..\SickGear\cache')
+sickgear.CONFIG_FILE = os.path.join(sickgear.DATA_DIR, 'config.ini')
+sickgear.CFG = ConfigObj(sickgear.CONFIG_FILE)
 
 # For OSes that are poorly configured I'll just randomly force UTF-8
-if not sickbeard.SYS_ENCODING or sickbeard.SYS_ENCODING in ('ANSI_X3.4-1968', 'US-ASCII', 'ASCII'):
-    sickbeard.SYS_ENCODING = 'UTF-8'
+if not sickgear.SYS_ENCODING or sickgear.SYS_ENCODING in ('ANSI_X3.4-1968', 'US-ASCII', 'ASCII'):
+    sickgear.SYS_ENCODING = 'UTF-8'
 
 
 class test_logger(logger.SBRotatingLogHandler):
@@ -107,17 +108,20 @@ class test_load_msg(classes.LoadingMessage):
 logger.sb_log_instance = test_logger('')
 classes.loading_msg = test_load_msg()
 
+res_conf = res_c = res_m = res_f = None
 try:
-    cm = rollback.ConfigFile()
-    #cm.run(19)
-    rc = rollback.CacheDb()
+    cm = rollback_sg.ConfigFile()
+    # res_conf = cm.run(19)
+    rc = rollback_sg.CacheDb()
     rc.load_msg = 'Test Cache'
-    # rc.run(7, raise_exception=True)
-    rm = rollback.MainDb()
+    res_c = rc.run(7, raise_exception=True)
+    rm = rollback_sg.MainDb()
     rm.load_msg = 'Test Main'
-    rm.run(20016, raise_exception=True)
-    rf = rollback.FailedDb()
+    res_m = rm.run(20016, raise_exception=True)
+    rf = rollback_sg.FailedDb()
     rf.load_msg = 'Test Failed'
-    #rf.run(2, raise_exception=True)
+    res_f = rf.run(2, raise_exception=True)
 except (BaseException, Exception) as e:
+    traceback.print_exc()
     print(ex(e))
+print(f'Main: {res_m}; Cache: {res_c}; Fail: {res_f}')
