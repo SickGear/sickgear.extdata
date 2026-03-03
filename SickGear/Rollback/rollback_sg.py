@@ -525,13 +525,27 @@ class CacheDb(DBRollbackBase):
             100000: self.rollback_test_100000,
             100001: self.rollback_test_100001,
             100002: self.rollback_test_100002,
+            100003: self.rollback_test_100003,
             # regular db rollbacks
             3: self.rollback_3,
             4: self.rollback_4,
             5: self.rollback_5,
             6: self.rollback_6,
             7: self.rollback_7,
+            8: self.rollback_8,
         }
+
+    def rollback_test_100003(self):
+        if 8 <= self.rollback_version < 100000:
+            # special case: switch from test coreid to released production
+            self.log_load_msg('Switching db version number')
+            return self.set_db_version(8)
+        self.log_load_msg('Remove columns from show_queue')
+        self.remove_column('show_queue', ['rls_ignore_words', 'rls_require_words', 'rls_global_exclude_ignore',
+                                          'rls_global_exclude_require', 'size_profile'])
+        self.log_load_msg('Remove columns from provider_cache')
+        self.remove_column('provider_cache', ['size', 'uid'])
+        self.set_db_version(7)
 
     def rollback_test_100002(self):
         if 7 <= self.rollback_version < 100000:
@@ -573,6 +587,11 @@ class CacheDb(DBRollbackBase):
                                  'release_group TEXT, version NUMERIC)']
                                 ])
         self.set_db_version(4)  # set production db version
+
+    # regular db rollbacks
+    def rollback_8(self):
+        # same as test 100003
+        self.rollback_test_100003()
 
     # regular db rollbacks
     def rollback_7(self):
