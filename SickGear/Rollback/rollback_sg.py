@@ -669,11 +669,11 @@ class MainDb(DBRollbackBase):
         self.log_load_msg('Remove table profile_sizes, size_profile_settings')
         self.remove_table('profiles_sizes')
         self.remove_table('size_profile_settings')
-        self.log_load_msg('Remove column size_profile form tv_shows')
+        self.log_load_msg('Remove column size_profile from tv_shows')
         self.remove_column('tv_shows', 'size_profiles')
         self.log_load_msg('Remove column puid, client, client_uid from history')
         self.remove_column('history', ['puid', 'client', 'client_uid'])
-        self.log_load_msg('Remove column video_codec form tv_episodes')
+        self.log_load_msg('Remove column video_codec from tv_episodes')
         self.remove_column('tv_episodes', 'video_codec')
         self.set_db_version(20016)
 
@@ -691,7 +691,7 @@ class MainDb(DBRollbackBase):
             from sickgear.helpers import moveFile as move_file
         new_tmdb_id, old_tmdb_id = 4, 102
         cache_img_src = {'tmdb': 4, 'tvdb': 1, 'tvmaze': 3, 'imdb': 100}
-        self.log_load_msg('Renaming Images back')
+        self.log_load_msg('Renaming images back')
         for _dir in (self.get_person_dir(), self.get_characters_dir()):
             for _f in scandir(_dir):  # type: DirEntry
                 if not _f.is_file(follow_symlinks=False):
