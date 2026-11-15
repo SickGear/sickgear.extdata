@@ -421,6 +421,14 @@ class DBRollbackBase(RollbackBase):
         # vacuum the db as we will have a lot of space to reclaim after dropping tables
         self.my_db.action('VACUUM')
 
+    def remove_existing_columns(self, table, columns):
+        # type: (AnyStr, List[AnyStr]) -> None
+        # remove the given columns that exist in table, so that a step can run again or clean up after an old test db
+        if self.my_db.has_table(table):
+            columns = [_c for _c in columns if self.my_db.has_column(table, _c)]
+            if columns:
+                self.remove_column(table, columns)
+
     def set_db_version(self, version):
         self.my_db.action('UPDATE' + ' db_version SET db_version = ?', [version])
         self.my_db.action('VACUUM')
@@ -533,19 +541,41 @@ class CacheDb(DBRollbackBase):
             6: self.rollback_6,
             7: self.rollback_7,
             8: self.rollback_8,
+            9: self.rollback_9,
+            10: self.rollback_10,
         }
 
-    def rollback_test_100003(self):
-        if 8 <= self.rollback_version < 100000:
-            # special case: switch from test coreid to released production
-            self.log_load_msg('Switching db version number')
-            return self.set_db_version(8)
-        self.log_load_msg('Remove columns from show_queue')
-        self.remove_column('show_queue', ['rls_ignore_words', 'rls_require_words', 'rls_global_exclude_ignore',
-                                          'rls_global_exclude_require', 'size_profile'])
+    def remove_queue_size_profile(self):
+        # undo 9 -> 10
+        self.log_load_msg('Remove column size_profile from show_queue')
+        self.remove_existing_columns('show_queue', ['size_profile'])
+
+    def remove_queue_words(self):
+        # undo 8 -> 9
+        self.log_load_msg('Remove word columns from show_queue')
+        self.remove_existing_columns('show_queue', ['rls_ignore_words', 'rls_require_words',
+                                                    'rls_global_exclude_ignore', 'rls_global_exclude_require'])
+
+    def remove_provider_cache_size_uid(self):
+        # undo 7 -> 8
         self.log_load_msg('Remove columns from provider_cache')
-        self.remove_column('provider_cache', ['size', 'uid'])
-        self.set_db_version(7)
+        self.remove_existing_columns('provider_cache', ['size', 'uid'])
+
+    def rollback_test_100003(self):
+        # a test db has the data of production 10, and gets one step to reach its target
+        target = 7
+        if 7 <= self.rollback_version < 100000:
+            target = min(self.rollback_version, 10)
+        if 10 == target:
+            # special case: switch from test to released production
+            self.log_load_msg('Switching db version number')
+        if 10 > target:
+            self.remove_queue_size_profile()
+        if 9 > target:
+            self.remove_queue_words()
+        if 8 > target:
+            self.remove_provider_cache_size_uid()
+        self.set_db_version(target)
 
     def rollback_test_100002(self):
         if 7 <= self.rollback_version < 100000:
@@ -589,9 +619,20 @@ class CacheDb(DBRollbackBase):
         self.set_db_version(4)  # set production db version
 
     # regular db rollbacks
+    def rollback_10(self):
+        self.remove_queue_size_profile()
+        self.set_db_version(9)
+
+    def rollback_9(self):
+        self.remove_queue_words()
+        self.set_db_version(8)
+
     def rollback_8(self):
-        # same as test 100003
-        self.rollback_test_100003()
+        # also removes what a db of the old combined version 8 can hold
+        self.remove_queue_size_profile()
+        self.remove_queue_words()
+        self.remove_provider_cache_size_uid()
+        self.set_db_version(7)
 
     # regular db rollbacks
     def rollback_7(self):
@@ -659,23 +700,43 @@ class MainDb(DBRollbackBase):
             20015: self.rollback_20015,
             20016: self.rollback_20016,
             20017: self.rollback_20017,
+            20018: self.rollback_20018,
+            20019: self.rollback_20019,
         }
 
-    def rollback_100010(self):
-        if 20017 <= self.rollback_version < 100000:
-            # special case: switch from test to released production
-            self.log_load_msg('Switching db version number')
-            return self.set_db_version(20017)
-        self.log_load_msg('Remove table profile_sizes, size_profile_settings')
+    def remove_size_profiles(self):
+        # undo 20018 -> 20019
+        self.log_load_msg('Remove table profiles_sizes, size_profile_settings')
         self.remove_table('profiles_sizes')
         self.remove_table('size_profile_settings')
-        self.log_load_msg('Remove column size_profile from tv_shows')
-        self.remove_column('tv_shows', 'size_profiles')
-        self.log_load_msg('Remove column puid, client, client_uid from history')
-        self.remove_column('history', ['puid', 'client', 'client_uid'])
+        self.log_load_msg('Remove column size_profiles from tv_shows')
+        self.remove_existing_columns('tv_shows', ['size_profiles'])
+
+    def remove_video_codec(self):
+        # undo 20017 -> 20018
         self.log_load_msg('Remove column video_codec from tv_episodes')
-        self.remove_column('tv_episodes', 'video_codec')
-        self.set_db_version(20016)
+        self.remove_existing_columns('tv_episodes', ['video_codec'])
+
+    def remove_download_identity(self):
+        # undo 20016 -> 20017
+        self.log_load_msg('Remove column puid, client, client_uid from history')
+        self.remove_existing_columns('history', ['puid', 'client', 'client_uid'])
+
+    def rollback_100010(self):
+        # a test db has the data of production 20019, and gets one step to reach its target
+        target = 20016
+        if 20016 <= self.rollback_version < 100000:
+            target = min(self.rollback_version, 20019)
+        if 20019 == target:
+            # special case: switch from test to released production
+            self.log_load_msg('Switching db version number')
+        if 20019 > target:
+            self.remove_size_profiles()
+        if 20018 > target:
+            self.remove_video_codec()
+        if 20017 > target:
+            self.remove_download_identity()
+        self.set_db_version(target)
 
     def rollback_100009(self):
         if 20016 <= self.rollback_version < 100000:
@@ -1069,9 +1130,20 @@ class MainDb(DBRollbackBase):
 
         self.set_db_version(20010)
 
+    def rollback_20019(self):
+        self.remove_size_profiles()
+        self.set_db_version(20018)
+
+    def rollback_20018(self):
+        self.remove_video_codec()
+        self.set_db_version(20017)
+
     def rollback_20017(self):
-        # this is the same as test version 100010, so simply call that
-        self.rollback_100010()
+        # also removes what a db of the old combined version 20017 can hold
+        self.remove_size_profiles()
+        self.remove_video_codec()
+        self.remove_download_identity()
+        self.set_db_version(20016)
 
     def rollback_20016(self):
         # this is the same as test version 100009, so simply call that
